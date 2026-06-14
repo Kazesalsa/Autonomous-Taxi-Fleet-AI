@@ -11,11 +11,32 @@ def v2v_rescue_bfs(graph, start_id, broken_edges_set):
         curr = queue.popleft()
         for edge in graph.nodes[curr].edges:
             edge_id = tuple(sorted((curr, edge.target_id)))
-            if edge_id not in broken_edges_set and edge.target_id not in visited:
-                visited.add(edge.target_id)
-                queue.append(edge.target_id)
-                network.append(edge.target_id)
+            if edge_id not in broken_edges_set or (broken_edges_set[edge_id].get('discovered', True) == False):
+                if edge.target_id not in visited:
+                    visited.add(edge.target_id)
+                    queue.append(edge.target_id)
+                    network.append(edge.target_id)
     return network
+
+def get_reachable_network(graph, start_id, broken_edges):
+    visited_nodes = {start_id}
+    visited_edges = set()
+    queue = deque([start_id])
+    while queue:
+        curr = queue.popleft()
+        for edge in graph.nodes[curr].edges:
+            edge_id = tuple(sorted((curr, edge.target_id)))
+            is_blocked = False
+            if edge_id in broken_edges:
+                if broken_edges[edge_id]['type'] != 'CROSSWALK' and broken_edges[edge_id].get('discovered', False):
+                    is_blocked = True
+            
+            if not is_blocked:
+                visited_edges.add(edge_id)
+                if edge.target_id not in visited_nodes:
+                    visited_nodes.add(edge.target_id)
+                    queue.append(edge.target_id)
+    return visited_nodes, visited_edges
 
 def bfs_find_nearest_taxi(graph, start_id, vehicles):
     visited = {start_id}
@@ -56,7 +77,11 @@ def dynamic_routing_a_star(graph, start_id, goal_id, ignore_traffic=False, broke
         for edge in graph.nodes[curr_id].edges:
             neighbor_id = edge.target_id
             edge_id = tuple(sorted((curr_id, neighbor_id)))
-            if broken_edges_set and edge_id in broken_edges_set: continue 
+            
+            if broken_edges_set and edge_id in broken_edges_set:
+                if broken_edges_set[edge_id].get('discovered', False) and broken_edges_set[edge_id]['type'] != 'CROSSWALK':
+                    continue 
+                    
             weight = edge.distance if ignore_traffic else edge.get_weight()
             if weight == float('inf') and not ignore_traffic: continue
                 
@@ -74,9 +99,9 @@ def online_search_replanning(graph, current_node, target_node, final_goal, broke
 
 def optimize_traffic_lights_sa(graph, enabled=True):
     for node_id, node in graph.nodes.items():
-        if len(node.edges) <= 2 or 'P' in node_id or node_id in ['DEPOT', 'GATE']:
+        if len(node.edges) <= 2 or 'P' in node_id or node_id in ['DEPOT', 'GATE', 'HOSPITAL']:
             node.has_light = False; continue
-        if 200 < node.x < 1100 and 150 < node.y < 750:
+        if 200 < node.x < 1100 and 200 < node.y < 800:
             node.has_light = True
             if enabled: node.light_duration = random.randint(200, 350)
             else: node.light_duration = random.choice([60, 600]) 
@@ -97,8 +122,3 @@ def emergency_csp(ambulance_path, graph):
             node.light_state = 'H_GREEN' if axis == 'H' else 'V_GREEN'
             node.csp_locked = True
     return True
-
-def expectimax_roundabout(state, depth, is_max_turn):
-    if depth == 0: return -10 if state == "WAITING" else 10
-    if is_max_turn: return max(expectimax_roundabout("PROGRESS", depth - 1, False), expectimax_roundabout("WAITING", depth - 1, False))
-    else: return 0.3 * -1000 + 0.7 * 1000 if state == "PROGRESS" else 10

@@ -20,11 +20,11 @@ class Vehicle:
         self.u_turn_progress = 0.0
         self.start_uturn_angle = 0.0
         self.new_path_pending = None
+        self.stuck_target = None
         
-        # Taxi Logic
-        self.status = "IDLE" # IDLE, TO_CUSTOMER, CARRYING, RETURNING, AMBULANCE
+        self.status = "IDLE"
         self.customer_goal = None
-        self.state = "IDLE_IN_DEPOT" # Physical state
+        self.state = "IDLE_IN_DEPOT"
         
         if is_ambulance: self.status = "AMBULANCE"
 
@@ -63,7 +63,7 @@ class Vehicle:
         if self.state in ["YIELD", "SAFE_WAIT", "WAIT_U_TURN"]: return False
 
         if not self.target_node_id or self.current_node_id not in graph.nodes or self.target_node_id not in graph.nodes:
-            return True # Reached node
+            return True
 
         target_node = graph.nodes[self.target_node_id]
         speed = VEHICLE_SPEED_BASE * 1.8 if self.is_ambulance else VEHICLE_SPEED_BASE
@@ -75,7 +75,6 @@ class Vehicle:
         
         if dist > 0: self.angle = math.atan2(dy, dx)
 
-        # Traffic light logic
         stop_dist = (ROAD_WIDTH/2 + 10)
         if target_node.has_light and target_node.light_state in ['RED', 'YELLOW'] and not self.is_ambulance and dist < stop_dist:
             dx_edge = target_node.x - graph.nodes[self.current_edge_start_id].x
