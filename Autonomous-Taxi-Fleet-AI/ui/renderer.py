@@ -202,7 +202,7 @@ class Renderer:
 
         self.screen.blit(self.bold_font.render("Tạo Sự Kiện (Click Map)", True, (200, 200, 255)), (MAP_WIDTH + 20, 290))
         self._draw_btn(ui_rects['crosswalk'], "1. Người Qua Đường", (52, 152, 219) if select_mode != 'CROSS' else (241, 196, 15))
-        self._draw_btn(ui_rects['obstacle'], "2. Tạo Vật Cản", (231, 76, 60) if select_mode != 'OBS' else (241, 196, 15))
+        self._draw_btn(ui_rects['obstacle'], "2. Tạo Vật Cản/Xóa", (231, 76, 60) if select_mode != 'OBS' else (241, 196, 15))
         self._draw_btn(ui_rects['ambulance'], "3. Cấp Cứu Về B.Viện", (241, 196, 15) if select_mode == 'AMB_START' else (230, 126, 34))
 
         if select_mode:
@@ -210,7 +210,7 @@ class Renderer:
             if select_mode == 'CUST_START': info = "B1: CLICK CHỌN ĐIỂM ĐÓN KHÁCH"
             elif select_mode == 'CUST_GOAL': info = "B2: CLICK CHỌN ĐIỂM TRẢ KHÁCH"
             elif select_mode == 'CROSS': info = "CLICK VÀO ĐOẠN ĐƯỜNG BẤT KỲ"
-            elif select_mode == 'OBS': info = "CLICK TẠO (HOẶC VẬT CẢN ĐỂ XÓA)"
+            elif select_mode == 'OBS': info = "CLICK MẶT ĐƯỜNG (HOẶC VẬT CẢN ĐỂ XÓA)"
             elif select_mode == 'AMB_START': info = "CLICK CHỌN ĐIỂM XUẤT PHÁT"
             self.screen.blit(self.bold_font.render(info, True, (241, 196, 15)), (MAP_WIDTH + 20, 450))
 

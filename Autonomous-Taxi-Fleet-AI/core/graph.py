@@ -40,3 +40,10 @@ class Graph:
             dist = math.hypot(n1.x - n2.x, n1.y - n2.y)
             n1.add_edge(id2, dist, traffic_factor)
             n2.add_edge(id1, dist, traffic_factor)
+
+    def get_edge(self, id1, id2):
+        if id1 in self.nodes:
+            for edge in self.nodes[id1].edges:
+                if edge.target_id == id2:
+                    return edge
+        return None

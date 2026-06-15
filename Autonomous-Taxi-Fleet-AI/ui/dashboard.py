@@ -24,7 +24,6 @@ class Dashboard:
                 if rect.collidepoint(pos): return key
             return None
 
-        # Safe Check Remove obstacle
         for edge_id, obs in list(broken_edges.items()):
             if math.hypot(pos[0] - obs['pos'][0], pos[1] - obs['pos'][1]) < 25:
                 return ("REMOVE_BLOCK", edge_id)

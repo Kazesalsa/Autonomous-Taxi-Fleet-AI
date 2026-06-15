@@ -93,9 +93,9 @@ def dynamic_routing_a_star(graph, start_id, goal_id, ignore_traffic=False, broke
                 heapq.heappush(open_set, (f_score[neighbor_id], neighbor_id))
     return []
 
-def online_search_replanning(graph, current_node, target_node, final_goal, broken_edges_set):
+def online_search_replanning(graph, current_node, target_node, final_goal, broken_edges_set, is_amb=False):
     start_re = target_node if target_node else current_node
-    return dynamic_routing_a_star(graph, start_re, final_goal, broken_edges_set=broken_edges_set)
+    return dynamic_routing_a_star(graph, start_re, final_goal, ignore_traffic=is_amb, broken_edges_set=broken_edges_set)
 
 def optimize_traffic_lights_sa(graph, enabled=True):
     for node_id, node in graph.nodes.items():
