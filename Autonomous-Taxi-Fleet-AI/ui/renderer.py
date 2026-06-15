@@ -194,8 +194,8 @@ class Renderer:
 
         self.screen.blit(self.title_font.render("TAXI FLEET AI MANAGER", True, (255, 255, 255)), (MAP_WIDTH + 20, 20))
         
-        self._draw_btn(ui_rects['pause'], "► Tiếp Tục Thời Gian" if is_paused else "|| Dừng Thời Gian", (231, 76, 60) if is_paused else (46, 204, 113))
-        self._draw_btn(ui_rects['fog'], "Tắt Bản Đồ Sương Mù" if show_fog else "Bật Bản Đồ Sương Mù", (155, 89, 182) if show_fog else (100, 100, 100))
+        self._draw_btn(ui_rects['pause'], "Tiếp Tục Thời Gian" if is_paused else "|| Dừng Thời Gian", (231, 76, 60) if is_paused else (46, 204, 113))
+        self._draw_btn(ui_rects['fog'], "Tắt Bản Đồ Của Xe" if show_fog else "Bật Bản Đồ Của Xe", (155, 89, 182) if show_fog else (100, 100, 100))
 
         self.screen.blit(self.bold_font.render("Nghiệp Vụ Đón Khách", True, (200, 200, 255)), (MAP_WIDTH + 20, 180))
         self._draw_btn(ui_rects['customer'], "Tạo Khách Hàng Gọi Xe", (46, 204, 113) if not select_mode.startswith('CUST') else (241, 196, 15))

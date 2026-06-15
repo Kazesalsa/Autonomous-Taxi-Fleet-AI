@@ -66,7 +66,7 @@ class Vehicle:
             return True
 
         target_node = graph.nodes[self.target_node_id]
-        speed = VEHICLE_SPEED_BASE * 1.8 if self.is_ambulance else VEHICLE_SPEED_BASE
+        speed = VEHICLE_SPEED_BASE * 1.4 if self.is_ambulance else VEHICLE_SPEED_BASE
         if not self.is_ambulance and self.state in ["YIELD_INNER", "YIELD_OUTER"]: speed *= 0.3
 
         dx = target_node.x - self.x
