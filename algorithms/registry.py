@@ -1,41 +1,17 @@
-from algorithms.group1_uninformed.bfs import run_bfs
-from algorithms.group1_uninformed.dfs import run_dfs
-from algorithms.group1_uninformed.ucs import run_ucs
-from algorithms.group2_informed.greedy_best_first import run_gbfs
-from algorithms.group2_informed.a_star import run_a_star
-from algorithms.group2_informed.weighted_a_star import run_weighted_a_star
-from algorithms.group3_local_search.hill_climbing import run_hill_climbing
-from algorithms.group3_local_search.simulated_annealing import run_simulated_annealing
-from algorithms.group3_local_search.local_beam_search import run_local_beam_search
-from algorithms.group4_complex_env.and_or_search import run_and_or_search
-from algorithms.group4_complex_env.online_replanning import run_online_replanning
-from algorithms.group4_complex_env.sensorless_search import run_sensorless_search
-from algorithms.group5_csp.backtracking import run_backtracking
-from algorithms.group5_csp.ac3 import run_ac3
-from algorithms.group5_csp.min_conflicts import run_min_conflicts
-from algorithms.group6_adversarial.minimax import run_minimax
-from algorithms.group6_adversarial.alpha_beta import run_alpha_beta
-from algorithms.group6_adversarial.expectimax import run_expectimax
+from algorithms.uninformed import run_bfs, run_dfs, run_ucs
+from algorithms.informed import run_gbfs, run_a_star, run_weighted_a_star
+from algorithms.local_search import run_hill_climbing, run_simulated_annealing, run_local_beam_search
+from algorithms.complex_env import run_and_or_search, run_online_replanning, run_sensorless_search
+from algorithms.csp import run_backtracking, run_ac3, run_min_conflicts
+from algorithms.adversarial import run_minimax, run_alpha_beta, run_expectimax
 
 ALGORITHM_REGISTRY = {
-    "BFS": run_bfs,
-    "DFS": run_dfs,
-    "UCS": run_ucs,
-    "GBFS": run_gbfs,
-    "A*": run_a_star,
-    "Weighted A*": run_weighted_a_star,
-    "Hill Climbing": run_hill_climbing,
-    "Simulated Annealing": run_simulated_annealing,
-    "Local Beam Search": run_local_beam_search,
-    "AND-OR Search": run_and_or_search,
-    "Online Replanning": run_online_replanning,
-    "Sensorless Search": run_sensorless_search,
-    "Backtracking": run_backtracking,
-    "AC-3": run_ac3,
-    "Min-Conflicts": run_min_conflicts,
-    "Minimax": run_minimax,
-    "Alpha-Beta": run_alpha_beta,
-    "Expectimax": run_expectimax
+    "BFS": run_bfs, "DFS": run_dfs, "UCS": run_ucs,
+    "GBFS": run_gbfs, "A*": run_a_star, "Weighted A*": run_weighted_a_star,
+    "Hill Climbing": run_hill_climbing, "Simulated Annealing": run_simulated_annealing, "Local Beam Search": run_local_beam_search,
+    "AND-OR Search": run_and_or_search, "Online Replanning": run_online_replanning, "Sensorless Search": run_sensorless_search,
+    "Backtracking": run_backtracking, "AC-3": run_ac3, "Min-Conflicts": run_min_conflicts,
+    "Minimax": run_minimax, "Alpha-Beta": run_alpha_beta, "Expectimax": run_expectimax
 }
 
 GROUP_MAPPING = {
