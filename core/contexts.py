@@ -34,3 +34,12 @@ class ComplexEnvContext:
     broken_edges: Dict[Tuple[str, str], Dict[str, Any]]
     heuristic_fn: Callable[[Any, Any], float]
     sensor_range: float = 150.0
+
+@dataclass
+class AdversarialContext:
+    graph: Any
+    vehicle_start: str
+    saboteur_start: str
+    goal_id: str
+    max_depth: int = 4
+    heuristic_fn: Optional[Callable[[Any, Any], float]] = None

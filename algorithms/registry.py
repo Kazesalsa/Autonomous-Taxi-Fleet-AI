@@ -13,6 +13,9 @@ from algorithms.group4_complex_env.sensorless_search import run_sensorless_searc
 from algorithms.group5_csp.backtracking import run_backtracking
 from algorithms.group5_csp.ac3 import run_ac3
 from algorithms.group5_csp.min_conflicts import run_min_conflicts
+from algorithms.group6_adversarial.minimax import run_minimax
+from algorithms.group6_adversarial.alpha_beta import run_alpha_beta
+from algorithms.group6_adversarial.expectimax import run_expectimax
 
 ALGORITHM_REGISTRY = {
     "BFS": run_bfs,
@@ -29,7 +32,10 @@ ALGORITHM_REGISTRY = {
     "Sensorless Search": run_sensorless_search,
     "Backtracking": run_backtracking,
     "AC-3": run_ac3,
-    "Min-Conflicts": run_min_conflicts
+    "Min-Conflicts": run_min_conflicts,
+    "Minimax": run_minimax,
+    "Alpha-Beta": run_alpha_beta,
+    "Expectimax": run_expectimax
 }
 
 GROUP_MAPPING = {
@@ -37,5 +43,6 @@ GROUP_MAPPING = {
     "Group 2: Informed": ["GBFS", "A*", "Weighted A*"],
     "Group 3: Local Search": ["Hill Climbing", "Simulated Annealing", "Local Beam Search"],
     "Group 4: Complex Env": ["AND-OR Search", "Online Replanning", "Sensorless Search"],
-    "Group 5: CSP": ["Backtracking", "AC-3", "Min-Conflicts"]
+    "Group 5: CSP": ["Backtracking", "AC-3", "Min-Conflicts"],
+    "Group 6: Adversarial": ["Minimax", "Alpha-Beta", "Expectimax"]
 }

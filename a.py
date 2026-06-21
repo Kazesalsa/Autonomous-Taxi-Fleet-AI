@@ -1,6 +1,6 @@
 import os
 
-def create_phase3_files():
+def create_phase4_files():
     files = {
         "core/contexts.py": r"""from dataclasses import dataclass
 from typing import Callable, Any, Optional, Dict, List, Set, Tuple
@@ -38,168 +38,167 @@ class ComplexEnvContext:
     broken_edges: Dict[Tuple[str, str], Dict[str, Any]]
     heuristic_fn: Callable[[Any, Any], float]
     sensor_range: float = 150.0
+
+@dataclass
+class AdversarialContext:
+    graph: Any
+    vehicle_start: str
+    saboteur_start: str
+    goal_id: str
+    max_depth: int = 4
+    heuristic_fn: Optional[Callable[[Any, Any], float]] = None
 """,
-        "algorithms/group4_complex_env/__init__.py": "",
-        "algorithms/group4_complex_env/and_or_search.py": r"""import time
+        "algorithms/group6_adversarial/__init__.py": "",
+        "algorithms/group6_adversarial/minimax.py": r"""import time
 from core.metrics import ExperimentResult
 
-def run_and_or_search(context) -> ExperimentResult:
+def run_minimax(context) -> ExperimentResult:
     start_time = time.perf_counter()
     graph = context.graph
-    goal_id = context.goal_id
-    broken_edges = context.broken_edges
+    goal = context.goal_id
+    h_fn = context.heuristic_fn
     
     nodes_expanded = [0]
     
-    def or_search(state, path):
-        nodes_expanded[0] += 1
-        if state == goal_id: return []
-        if state in path: return None
+    def terminal_test(v_node, depth):
+        return v_node == goal or depth == 0
         
-        for edge in graph.nodes[state].edges:
-            action = edge.target_id
-            edge_tuple = tuple(sorted((state, action)))
-            
-            if edge_tuple in broken_edges and broken_edges[edge_tuple]['type'] != 'CROSSWALK':
-                plan = and_search(state, action, path + [state])
-                if plan is not None:
-                    return {action: plan}
-            else:
-                plan = or_search(action, path + [state])
-                if plan is not None:
-                    return {action: plan}
-        return None
-        
-    def and_search(state, action, path):
-        nodes_expanded[0] += 1
-        
-        plan_if_clear = or_search(action, path)
-        if plan_if_clear is None: return None
-        
-        plan_if_blocked = or_search(state, path)
-        if plan_if_blocked is None: return None
-        
-        return {"if_clear": plan_if_clear, "if_blocked": plan_if_blocked}
-        
-    result_plan = or_search(context.start_id, [])
-    exec_time = (time.perf_counter() - start_time) * 1000
-    success = result_plan is not None
-    
-    return ExperimentResult("AND-OR Search", "Complex Env", success, exec_time, {"nodes_expanded": nodes_expanded[0]}, None)
-""",
-        "algorithms/group4_complex_env/online_replanning.py": r"""import time
-import heapq
-from core.metrics import ExperimentResult
+    def eval_fn(v_node):
+        return -h_fn(graph.nodes[v_node], graph.nodes[goal])
 
-def a_star(graph, start_id, goal_id, h_fn, known_broken):
-    open_set = []
-    heapq.heappush(open_set, (0, start_id))
-    came_from = {start_id: None}
-    g_score = {start_id: 0}
-    
-    while open_set:
-        _, curr = heapq.heappop(open_set)
-        if curr == goal_id:
-            path = []
-            while curr is not None:
-                path.append(curr)
-                curr = came_from[curr]
-            return path[::-1]
-            
-        for edge in graph.nodes[curr].edges:
+    def max_value(v_node, s_node, blocked_edge, depth):
+        nodes_expanded[0] += 1
+        if terminal_test(v_node, depth): return eval_fn(v_node), None
+        v = float('-inf')
+        best_action = None
+        for edge in graph.nodes[v_node].edges:
             nxt = edge.target_id
-            e_tuple = tuple(sorted((curr, nxt)))
-            if e_tuple in known_broken: continue
-            
-            tentative_g = g_score[curr] + edge.get_weight()
-            if tentative_g < g_score.get(nxt, float('inf')):
-                came_from[nxt] = curr
-                g_score[nxt] = tentative_g
-                f = tentative_g + h_fn(graph.nodes[nxt], graph.nodes[goal_id])
-                heapq.heappush(open_set, (f, nxt))
-    return []
+            e_tuple = tuple(sorted((v_node, nxt)))
+            if e_tuple == blocked_edge: continue
+            val, _ = min_value(nxt, s_node, None, depth - 1)
+            if val > v:
+                v = val
+                best_action = nxt
+        if best_action is None: return eval_fn(v_node), None
+        return v, best_action
 
-def run_online_replanning(context) -> ExperimentResult:
-    start_time = time.perf_counter()
-    graph = context.graph
-    curr = context.start_id
-    goal = context.goal_id
-    broken_edges = context.broken_edges
-    
-    known_broken = set()
-    actual_path = [curr]
-    replans = 0
-    nodes_expanded = 0
-    
-    while curr != goal:
-        plan = a_star(graph, curr, goal, context.heuristic_fn, known_broken)
-        if not plan: break
-            
-        nxt = plan[1]
-        e_tuple = tuple(sorted((curr, nxt)))
-        nodes_expanded += len(plan)
+    def min_value(v_node, s_node, blocked_edge, depth):
+        nodes_expanded[0] += 1
+        if terminal_test(v_node, depth): return eval_fn(v_node), None
+        v = float('inf')
+        best_action = None
         
-        if e_tuple in broken_edges and broken_edges[e_tuple]['type'] != 'CROSSWALK':
-            known_broken.add(e_tuple)
-            replans += 1
-        else:
-            curr = nxt
-            actual_path.append(curr)
-            
+        possible_blocks = [tuple(sorted((v_node, e.target_id))) for e in graph.nodes[v_node].edges]
+        if not possible_blocks: possible_blocks = [None]
+        
+        for block in possible_blocks:
+            val, _ = max_value(v_node, s_node, block, depth - 1)
+            if val < v:
+                v = val
+                best_action = block
+        return v, best_action
+
+    score, next_move = max_value(context.vehicle_start, context.saboteur_start, None, context.max_depth)
+    
     exec_time = (time.perf_counter() - start_time) * 1000
-    success = (curr == goal)
-    return ExperimentResult("Online Replanning", "Complex Env", success, exec_time, {"replans": replans, "nodes_expanded": nodes_expanded}, actual_path)
+    return ExperimentResult("Minimax", "Adversarial", next_move is not None, exec_time, {"nodes_expanded": nodes_expanded[0], "score": score}, [context.vehicle_start, next_move] if next_move else [])
 """,
-        "algorithms/group4_complex_env/sensorless_search.py": r"""import time
-from collections import deque
+        "algorithms/group6_adversarial/alpha_beta.py": r"""import time
 from core.metrics import ExperimentResult
 
-def run_sensorless_search(context) -> ExperimentResult:
+def run_alpha_beta(context) -> ExperimentResult:
     start_time = time.perf_counter()
     graph = context.graph
-    goal_id = context.goal_id
+    goal = context.goal_id
+    h_fn = context.heuristic_fn
     
-    initial_belief = frozenset([context.start_id])
-    queue = deque([(initial_belief, [])])
-    visited = set([initial_belief])
-    nodes_expanded = 0
+    nodes_expanded = [0]
     
-    success = False
-    final_path = []
-    
-    while queue:
-        belief, path = queue.popleft()
-        nodes_expanded += 1
+    def terminal_test(v_node, depth): return v_node == goal or depth == 0
+    def eval_fn(v_node): return -h_fn(graph.nodes[v_node], graph.nodes[goal])
+
+    def max_value(v_node, s_node, blocked_edge, depth, alpha, beta):
+        nodes_expanded[0] += 1
+        if terminal_test(v_node, depth): return eval_fn(v_node), None
+        v = float('-inf')
+        best_action = None
+        for edge in graph.nodes[v_node].edges:
+            nxt = edge.target_id
+            if tuple(sorted((v_node, nxt))) == blocked_edge: continue
+            val, _ = min_value(nxt, s_node, None, depth - 1, alpha, beta)
+            if val > v:
+                v = val; best_action = nxt
+            if v >= beta: return v, best_action
+            alpha = max(alpha, v)
+        if best_action is None: return eval_fn(v_node), None
+        return v, best_action
+
+    def min_value(v_node, s_node, blocked_edge, depth, alpha, beta):
+        nodes_expanded[0] += 1
+        if terminal_test(v_node, depth): return eval_fn(v_node), None
+        v = float('inf')
+        best_action = None
+        possible_blocks = [tuple(sorted((v_node, e.target_id))) for e in graph.nodes[v_node].edges]
+        if not possible_blocks: possible_blocks = [None]
         
-        if belief == frozenset([goal_id]):
-            success = True
-            final_path = path
-            break
-            
-        possible_actions = set()
-        for state in belief:
-            for edge in graph.nodes[state].edges:
-                possible_actions.add(edge.target_id)
-                
-        for action in possible_actions:
-            next_belief = set()
-            for state in belief:
-                can_move = False
-                for edge in graph.nodes[state].edges:
-                    if edge.target_id == action:
-                        next_belief.add(action)
-                        can_move = True
-                        break
-                if not can_move:
-                    next_belief.add(state)
-                    
-            next_b_frozen = frozenset(next_belief)
-            if next_b_frozen not in visited:
-                visited.add(next_b_frozen)
-                queue.append((next_b_frozen, path + [action]))
-                
+        for block in possible_blocks:
+            val, _ = max_value(v_node, s_node, block, depth - 1, alpha, beta)
+            if val < v:
+                v = val; best_action = block
+            if v <= alpha: return v, best_action
+            beta = min(beta, v)
+        return v, best_action
+
+    score, next_move = max_value(context.vehicle_start, context.saboteur_start, None, context.max_depth, float('-inf'), float('inf'))
+    
     exec_time = (time.perf_counter() - start_time) * 1000
-    return ExperimentResult("Sensorless Search", "Complex Env", success, exec_time, {"nodes_expanded": nodes_expanded}, final_path)
+    return ExperimentResult("Alpha-Beta", "Adversarial", next_move is not None, exec_time, {"nodes_expanded": nodes_expanded[0], "score": score}, [context.vehicle_start, next_move] if next_move else [])
+""",
+        "algorithms/group6_adversarial/expectimax.py": r"""import time
+from core.metrics import ExperimentResult
+
+def run_expectimax(context) -> ExperimentResult:
+    start_time = time.perf_counter()
+    graph = context.graph
+    goal = context.goal_id
+    h_fn = context.heuristic_fn
+    
+    nodes_expanded = [0]
+    
+    def terminal_test(v_node, depth): return v_node == goal or depth == 0
+    def eval_fn(v_node): return -h_fn(graph.nodes[v_node], graph.nodes[goal])
+
+    def max_value(v_node, s_node, blocked_edge, depth):
+        nodes_expanded[0] += 1
+        if terminal_test(v_node, depth): return eval_fn(v_node), None
+        v = float('-inf')
+        best_action = None
+        for edge in graph.nodes[v_node].edges:
+            nxt = edge.target_id
+            if tuple(sorted((v_node, nxt))) == blocked_edge: continue
+            val, _ = exp_value(nxt, s_node, None, depth - 1)
+            if val > v:
+                v = val; best_action = nxt
+        if best_action is None: return eval_fn(v_node), None
+        return v, best_action
+
+    def exp_value(v_node, s_node, blocked_edge, depth):
+        nodes_expanded[0] += 1
+        if terminal_test(v_node, depth): return eval_fn(v_node), None
+        possible_blocks = [tuple(sorted((v_node, e.target_id))) for e in graph.nodes[v_node].edges]
+        if not possible_blocks: return eval_fn(v_node), None
+        
+        v = 0
+        prob = 1.0 / len(possible_blocks)
+        for block in possible_blocks:
+            val, _ = max_value(v_node, s_node, block, depth - 1)
+            v += prob * val
+        return v, None
+
+    score, next_move = max_value(context.vehicle_start, context.saboteur_start, None, context.max_depth)
+    
+    exec_time = (time.perf_counter() - start_time) * 1000
+    return ExperimentResult("Expectimax", "Adversarial", next_move is not None, exec_time, {"nodes_expanded": nodes_expanded[0], "score": score}, [context.vehicle_start, next_move] if next_move else [])
 """,
         "algorithms/registry.py": r"""from algorithms.group1_uninformed.bfs import run_bfs
 from algorithms.group1_uninformed.dfs import run_dfs
@@ -216,6 +215,9 @@ from algorithms.group4_complex_env.sensorless_search import run_sensorless_searc
 from algorithms.group5_csp.backtracking import run_backtracking
 from algorithms.group5_csp.ac3 import run_ac3
 from algorithms.group5_csp.min_conflicts import run_min_conflicts
+from algorithms.group6_adversarial.minimax import run_minimax
+from algorithms.group6_adversarial.alpha_beta import run_alpha_beta
+from algorithms.group6_adversarial.expectimax import run_expectimax
 
 ALGORITHM_REGISTRY = {
     "BFS": run_bfs,
@@ -232,7 +234,10 @@ ALGORITHM_REGISTRY = {
     "Sensorless Search": run_sensorless_search,
     "Backtracking": run_backtracking,
     "AC-3": run_ac3,
-    "Min-Conflicts": run_min_conflicts
+    "Min-Conflicts": run_min_conflicts,
+    "Minimax": run_minimax,
+    "Alpha-Beta": run_alpha_beta,
+    "Expectimax": run_expectimax
 }
 
 GROUP_MAPPING = {
@@ -240,7 +245,8 @@ GROUP_MAPPING = {
     "Group 2: Informed": ["GBFS", "A*", "Weighted A*"],
     "Group 3: Local Search": ["Hill Climbing", "Simulated Annealing", "Local Beam Search"],
     "Group 4: Complex Env": ["AND-OR Search", "Online Replanning", "Sensorless Search"],
-    "Group 5: CSP": ["Backtracking", "AC-3", "Min-Conflicts"]
+    "Group 5: CSP": ["Backtracking", "AC-3", "Min-Conflicts"],
+    "Group 6: Adversarial": ["Minimax", "Alpha-Beta", "Expectimax"]
 }
 """
     }
@@ -251,4 +257,4 @@ GROUP_MAPPING = {
             f.write(content)
 
 if __name__ == "__main__":
-    create_phase3_files()
+    create_phase4_files()
