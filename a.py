@@ -1,9 +1,9 @@
 import os
 
-def create_phase2_files():
+def create_phase3_files():
     files = {
         "core/contexts.py": r"""from dataclasses import dataclass
-from typing import Callable, Any, Optional, Dict, List
+from typing import Callable, Any, Optional, Dict, List, Set, Tuple
 
 @dataclass
 class PathfindingContext:
@@ -29,272 +29,177 @@ class CSPContext:
     constraints: Callable[[str, int, str, int], bool]
     neighbors: Dict[str, List[str]]
     max_steps: int = 1000
+
+@dataclass
+class ComplexEnvContext:
+    graph: Any
+    start_id: str
+    goal_id: str
+    broken_edges: Dict[Tuple[str, str], Dict[str, Any]]
+    heuristic_fn: Callable[[Any, Any], float]
+    sensor_range: float = 150.0
 """,
-        "algorithms/group3_local_search/__init__.py": "",
-        "algorithms/group3_local_search/hill_climbing.py": r"""import time
+        "algorithms/group4_complex_env/__init__.py": "",
+        "algorithms/group4_complex_env/and_or_search.py": r"""import time
 from core.metrics import ExperimentResult
 
-def run_hill_climbing(context) -> ExperimentResult:
+def run_and_or_search(context) -> ExperimentResult:
     start_time = time.perf_counter()
-    current_state = context.initial_state.copy()
-    current_score = context.objective_fn(current_state)
-    iterations = 0
-
-    while iterations < context.max_iterations:
-        best_neighbor = None
-        best_score = float('inf')
-        
-        for node, duration in current_state.items():
-            for delta in [-5, 5]:
-                new_duration = duration + delta
-                if 10 <= new_duration <= 120:
-                    neighbor = current_state.copy()
-                    neighbor[node] = new_duration
-                    score = context.objective_fn(neighbor)
-                    if score < best_score:
-                        best_score = score
-                        best_neighbor = neighbor
-        
-        if best_neighbor is None or best_score >= current_score:
-            break
-            
-        current_state = best_neighbor
-        current_score = best_score
-        iterations += 1
-
-    exec_time = (time.perf_counter() - start_time) * 1000
-    return ExperimentResult("Hill Climbing", "Local Search", True, exec_time, 
-                          {"iterations": iterations, "final_score": current_score}, None)
-""",
-        "algorithms/group3_local_search/simulated_annealing.py": r"""import time
-import random
-import math
-from core.metrics import ExperimentResult
-
-def run_simulated_annealing(context) -> ExperimentResult:
-    start_time = time.perf_counter()
-    current_state = context.initial_state.copy()
-    current_score = context.objective_fn(current_state)
+    graph = context.graph
+    goal_id = context.goal_id
+    broken_edges = context.broken_edges
     
-    T = 100.0
-    cooling_rate = 0.95
-    iterations = 0
+    nodes_expanded = [0]
     
-    best_state = current_state
-    best_score = current_score
-
-    while iterations < context.max_iterations and T > 0.1:
-        if not current_state:
-            break
-        node = random.choice(list(current_state.keys()))
-        delta = random.choice([-5, 5])
-        new_duration = current_state[node] + delta
+    def or_search(state, path):
+        nodes_expanded[0] += 1
+        if state == goal_id: return []
+        if state in path: return None
         
-        if 10 <= new_duration <= 120:
-            neighbor = current_state.copy()
-            neighbor[node] = new_duration
-            neighbor_score = context.objective_fn(neighbor)
+        for edge in graph.nodes[state].edges:
+            action = edge.target_id
+            edge_tuple = tuple(sorted((state, action)))
             
-            if neighbor_score < current_score or random.random() < math.exp((current_score - neighbor_score) / T):
-                current_state = neighbor
-                current_score = neighbor_score
-                if current_score < best_score:
-                    best_score = current_score
-                    best_state = current_state
-
-        T *= cooling_rate
-        iterations += 1
-
-    exec_time = (time.perf_counter() - start_time) * 1000
-    return ExperimentResult("Simulated Annealing", "Local Search", True, exec_time, 
-                          {"iterations": iterations, "final_score": best_score}, None)
-""",
-        "algorithms/group3_local_search/local_beam_search.py": r"""import time
-from core.metrics import ExperimentResult
-
-def run_local_beam_search(context) -> ExperimentResult:
-    start_time = time.perf_counter()
-    k = context.k_beam
-    
-    states = [context.initial_state.copy() for _ in range(k)]
-    iterations = 0
-    best_score = float('inf')
-
-    while iterations < context.max_iterations:
-        all_neighbors = []
-        for state in states:
-            score = context.objective_fn(state)
-            all_neighbors.append((score, state))
-            
-            for node, duration in state.items():
-                for delta in [-5, 5]:
-                    new_duration = duration + delta
-                    if 10 <= new_duration <= 120:
-                        neighbor = state.copy()
-                        neighbor[node] = new_duration
-                        n_score = context.objective_fn(neighbor)
-                        all_neighbors.append((n_score, neighbor))
-        
-        all_neighbors.sort(key=lambda x: x[0])
-        next_states = []
-        seen = set()
-        for score, state in all_neighbors:
-            state_tuple = tuple(sorted(state.items()))
-            if state_tuple not in seen:
-                seen.add(state_tuple)
-                next_states.append((score, state))
-            if len(next_states) == k:
-                break
-                
-        if not next_states:
-            break
-            
-        states = [s[1] for s in next_states]
-        current_best = next_states[0][0]
-        
-        if current_best >= best_score:
-            break
-        best_score = current_best
-        iterations += 1
-
-    exec_time = (time.perf_counter() - start_time) * 1000
-    return ExperimentResult("Local Beam Search", "Local Search", True, exec_time, 
-                          {"iterations": iterations, "final_score": best_score}, None)
-""",
-        "algorithms/group5_csp/__init__.py": "",
-        "algorithms/group5_csp/backtracking.py": r"""import time
-from core.metrics import ExperimentResult
-
-def run_backtracking(context) -> ExperimentResult:
-    start_time = time.perf_counter()
-    assignment = {}
-    steps = [0]
-    
-    def backtrack(assign):
-        if len(assign) == len(context.variables):
-            return assign
-        
-        unassigned = [v for v in context.variables if v not in assign]
-        var = unassigned[0]
-        
-        for value in context.domains[var]:
-            steps[0] += 1
-            consistent = True
-            for neighbor in context.neighbors[var]:
-                if neighbor in assign:
-                    if not context.constraints(var, value, neighbor, assign[neighbor]):
-                        consistent = False
-                        break
-                        
-            if consistent:
-                assign[var] = value
-                result = backtrack(assign)
-                if result: return result
-                del assign[var]
-                
+            if edge_tuple in broken_edges and broken_edges[edge_tuple]['type'] != 'CROSSWALK':
+                plan = and_search(state, action, path + [state])
+                if plan is not None:
+                    return {action: plan}
+            else:
+                plan = or_search(action, path + [state])
+                if plan is not None:
+                    return {action: plan}
         return None
-
-    result = backtrack(assignment)
+        
+    def and_search(state, action, path):
+        nodes_expanded[0] += 1
+        
+        plan_if_clear = or_search(action, path)
+        if plan_if_clear is None: return None
+        
+        plan_if_blocked = or_search(state, path)
+        if plan_if_blocked is None: return None
+        
+        return {"if_clear": plan_if_clear, "if_blocked": plan_if_blocked}
+        
+    result_plan = or_search(context.start_id, [])
     exec_time = (time.perf_counter() - start_time) * 1000
+    success = result_plan is not None
     
-    return ExperimentResult(
-        "Backtracking", "CSP", result is not None, exec_time,
-        {"steps": steps[0], "violations": 0 if result else -1}, None
-    )
+    return ExperimentResult("AND-OR Search", "Complex Env", success, exec_time, {"nodes_expanded": nodes_expanded[0]}, None)
 """,
-        "algorithms/group5_csp/ac3.py": r"""import time
+        "algorithms/group4_complex_env/online_replanning.py": r"""import time
+import heapq
+from core.metrics import ExperimentResult
+
+def a_star(graph, start_id, goal_id, h_fn, known_broken):
+    open_set = []
+    heapq.heappush(open_set, (0, start_id))
+    came_from = {start_id: None}
+    g_score = {start_id: 0}
+    
+    while open_set:
+        _, curr = heapq.heappop(open_set)
+        if curr == goal_id:
+            path = []
+            while curr is not None:
+                path.append(curr)
+                curr = came_from[curr]
+            return path[::-1]
+            
+        for edge in graph.nodes[curr].edges:
+            nxt = edge.target_id
+            e_tuple = tuple(sorted((curr, nxt)))
+            if e_tuple in known_broken: continue
+            
+            tentative_g = g_score[curr] + edge.get_weight()
+            if tentative_g < g_score.get(nxt, float('inf')):
+                came_from[nxt] = curr
+                g_score[nxt] = tentative_g
+                f = tentative_g + h_fn(graph.nodes[nxt], graph.nodes[goal_id])
+                heapq.heappush(open_set, (f, nxt))
+    return []
+
+def run_online_replanning(context) -> ExperimentResult:
+    start_time = time.perf_counter()
+    graph = context.graph
+    curr = context.start_id
+    goal = context.goal_id
+    broken_edges = context.broken_edges
+    
+    known_broken = set()
+    actual_path = [curr]
+    replans = 0
+    nodes_expanded = 0
+    
+    while curr != goal:
+        plan = a_star(graph, curr, goal, context.heuristic_fn, known_broken)
+        if not plan: break
+            
+        nxt = plan[1]
+        e_tuple = tuple(sorted((curr, nxt)))
+        nodes_expanded += len(plan)
+        
+        if e_tuple in broken_edges and broken_edges[e_tuple]['type'] != 'CROSSWALK':
+            known_broken.add(e_tuple)
+            replans += 1
+        else:
+            curr = nxt
+            actual_path.append(curr)
+            
+    exec_time = (time.perf_counter() - start_time) * 1000
+    success = (curr == goal)
+    return ExperimentResult("Online Replanning", "Complex Env", success, exec_time, {"replans": replans, "nodes_expanded": nodes_expanded}, actual_path)
+""",
+        "algorithms/group4_complex_env/sensorless_search.py": r"""import time
 from collections import deque
 from core.metrics import ExperimentResult
 
-def run_ac3(context) -> ExperimentResult:
+def run_sensorless_search(context) -> ExperimentResult:
     start_time = time.perf_counter()
-    domains = {v: list(context.domains[v]) for v in context.variables}
-    queue = deque()
-    for v in context.variables:
-        for neighbor in context.neighbors[v]:
-            queue.append((v, neighbor))
+    graph = context.graph
+    goal_id = context.goal_id
     
-    steps = 0
+    initial_belief = frozenset([context.start_id])
+    queue = deque([(initial_belief, [])])
+    visited = set([initial_belief])
+    nodes_expanded = 0
+    
+    success = False
+    final_path = []
+    
     while queue:
-        steps += 1
-        xi, xj = queue.popleft()
+        belief, path = queue.popleft()
+        nodes_expanded += 1
         
-        revised = False
-        for x in domains[xi][:]:
-            if not any(context.constraints(xi, x, xj, y) for y in domains[xj]):
-                domains[xi].remove(x)
-                revised = True
-                
-        if revised:
-            if not domains[xi]:
-                exec_time = (time.perf_counter() - start_time) * 1000
-                return ExperimentResult("AC-3", "CSP", False, exec_time, {"steps": steps}, None)
-            for xk in context.neighbors[xi]:
-                if xk != xj:
-                    queue.append((xk, xi))
-                    
-    assignment = {}
-    def backtrack(assign):
-        if len(assign) == len(context.variables): return assign
-        var = [v for v in context.variables if v not in assign][0]
-        for value in domains[var]:
-            consistent = all(context.constraints(var, value, n, assign[n]) 
-                           for n in context.neighbors[var] if n in assign)
-            if consistent:
-                assign[var] = value
-                res = backtrack(assign)
-                if res: return res
-                del assign[var]
-        return None
-        
-    res = backtrack(assignment)
-    exec_time = (time.perf_counter() - start_time) * 1000
-    return ExperimentResult("AC-3", "CSP", res is not None, exec_time, {"steps": steps}, None)
-""",
-        "algorithms/group5_csp/min_conflicts.py": r"""import time
-import random
-from core.metrics import ExperimentResult
-
-def run_min_conflicts(context) -> ExperimentResult:
-    start_time = time.perf_counter()
-    
-    if not context.variables:
-         return ExperimentResult("Min-Conflicts", "CSP", False, 0.0, {"steps": 0, "violations": 0}, None)
-         
-    current = {v: random.choice(context.domains[v]) for v in context.variables}
-    
-    def get_conflicts(var, val, assign):
-        count = 0
-        for n in context.neighbors[var]:
-            if not context.constraints(var, val, n, assign[n]):
-                count += 1
-        return count
-
-    steps = 0
-    while steps < context.max_steps:
-        conflicted_vars = [v for v in context.variables if get_conflicts(v, current[v], current) > 0]
-                
-        if not conflicted_vars:
-            exec_time = (time.perf_counter() - start_time) * 1000
-            return ExperimentResult("Min-Conflicts", "CSP", True, exec_time, {"steps": steps, "violations": 0}, None)
+        if belief == frozenset([goal_id]):
+            success = True
+            final_path = path
+            break
             
-        var = random.choice(conflicted_vars)
-        min_c = float('inf')
-        best_vals = []
-        for val in context.domains[var]:
-            c = get_conflicts(var, val, current)
-            if c < min_c:
-                min_c = c
-                best_vals = [val]
-            elif c == min_c:
-                best_vals.append(val)
+        possible_actions = set()
+        for state in belief:
+            for edge in graph.nodes[state].edges:
+                possible_actions.add(edge.target_id)
                 
-        current[var] = random.choice(best_vals)
-        steps += 1
-        
+        for action in possible_actions:
+            next_belief = set()
+            for state in belief:
+                can_move = False
+                for edge in graph.nodes[state].edges:
+                    if edge.target_id == action:
+                        next_belief.add(action)
+                        can_move = True
+                        break
+                if not can_move:
+                    next_belief.add(state)
+                    
+            next_b_frozen = frozenset(next_belief)
+            if next_b_frozen not in visited:
+                visited.add(next_b_frozen)
+                queue.append((next_b_frozen, path + [action]))
+                
     exec_time = (time.perf_counter() - start_time) * 1000
-    violations = sum(1 for v in context.variables if get_conflicts(v, current[v], current) > 0)
-    return ExperimentResult("Min-Conflicts", "CSP", False, exec_time, {"steps": steps, "violations": violations}, None)
+    return ExperimentResult("Sensorless Search", "Complex Env", success, exec_time, {"nodes_expanded": nodes_expanded}, final_path)
 """,
         "algorithms/registry.py": r"""from algorithms.group1_uninformed.bfs import run_bfs
 from algorithms.group1_uninformed.dfs import run_dfs
@@ -305,6 +210,9 @@ from algorithms.group2_informed.weighted_a_star import run_weighted_a_star
 from algorithms.group3_local_search.hill_climbing import run_hill_climbing
 from algorithms.group3_local_search.simulated_annealing import run_simulated_annealing
 from algorithms.group3_local_search.local_beam_search import run_local_beam_search
+from algorithms.group4_complex_env.and_or_search import run_and_or_search
+from algorithms.group4_complex_env.online_replanning import run_online_replanning
+from algorithms.group4_complex_env.sensorless_search import run_sensorless_search
 from algorithms.group5_csp.backtracking import run_backtracking
 from algorithms.group5_csp.ac3 import run_ac3
 from algorithms.group5_csp.min_conflicts import run_min_conflicts
@@ -319,6 +227,9 @@ ALGORITHM_REGISTRY = {
     "Hill Climbing": run_hill_climbing,
     "Simulated Annealing": run_simulated_annealing,
     "Local Beam Search": run_local_beam_search,
+    "AND-OR Search": run_and_or_search,
+    "Online Replanning": run_online_replanning,
+    "Sensorless Search": run_sensorless_search,
     "Backtracking": run_backtracking,
     "AC-3": run_ac3,
     "Min-Conflicts": run_min_conflicts
@@ -328,6 +239,7 @@ GROUP_MAPPING = {
     "Group 1: Uninformed": ["BFS", "DFS", "UCS"],
     "Group 2: Informed": ["GBFS", "A*", "Weighted A*"],
     "Group 3: Local Search": ["Hill Climbing", "Simulated Annealing", "Local Beam Search"],
+    "Group 4: Complex Env": ["AND-OR Search", "Online Replanning", "Sensorless Search"],
     "Group 5: CSP": ["Backtracking", "AC-3", "Min-Conflicts"]
 }
 """
@@ -339,4 +251,4 @@ GROUP_MAPPING = {
             f.write(content)
 
 if __name__ == "__main__":
-    create_phase2_files()
+    create_phase3_files()
