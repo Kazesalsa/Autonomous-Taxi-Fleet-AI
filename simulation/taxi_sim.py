@@ -7,6 +7,7 @@ import math
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from config import *
+from simulation.spawners import spawn_scenario_customers, spawn_taxi
 from core.graph import Graph
 from core.vehicle import Vehicle
 from ui.renderer import Renderer
@@ -57,28 +58,15 @@ EDGE_NODES = ['N10', 'N24', 'N31', 'N27', 'N13', 'N20', 'N45', 'N57', 'N82', 'N8
 
 def init_custom_map():
     g = Graph()
-    g.add_node('DEPOT', 100, 50, label='')
-    g.add_node('GATE', 91, 302, label='GATE')
-    for i in range(1, 5): g.add_node(f'P{i}', 30 + (i-1)*35, 40, label='')
-    for i in range(5, 9): g.add_node(f'P{i}', 30 + (i-5)*35, 80, label='')
-    for i in range(1, 9): g.add_bidirectional_edge(f'P{i}', 'GATE')
-    
     for n_id, pos in nodes_data.items():
-        if n_id == 'N83':
-            g.add_node(n_id, pos[0], pos[1], label='HOSPITAL')
-        elif n_id in ['N84', 'N91']:
-            g.add_node(n_id, pos[0], pos[1], label='MALL')
-        else:
-            g.add_node(n_id, pos[0], pos[1], label='')
+        label = 'MALL' if n_id in ['N84', 'N91'] else ''
+        g.add_node(n_id, pos[0], pos[1], label=label)
 
     seen_edges = set()
     for u, v in edges_data:
-        if u in g.nodes and v in g.nodes:
-            if (u, v) not in seen_edges:
-                g.add_directional_edge(u, v)
-                seen_edges.add((u, v))
-
-    g.add_bidirectional_edge('GATE', 'N21')
+        if u in g.nodes and v in g.nodes and (u, v) not in seen_edges:
+            g.add_directional_edge(u, v)
+            seen_edges.add((u, v))
     return g
 
 def create_random_civilian(graph):
@@ -99,10 +87,9 @@ def create_random_civilian(graph):
             
     if len(path) > 1:
         v.set_path(path, graph)
-        v.state = "MOVING"
     else:
         v.x, v.y = nodes_data[start_node]
-        v.state = "MOVING"
+    v.state = "MOVING"
     return v
 
 def run_simulation():
@@ -126,73 +113,154 @@ def run_simulation():
     renderer = Renderer(screen, font, bold_font, title_font)
     dashboard = Dashboard()
     
-    vehicles = []
-    for _ in range(15):
-        vehicles.append(create_random_civilian(graph))
+    vehicles = [create_random_civilian(graph) for _ in range(10)]
+    customers = []
+    focused_vehicle = None
+    is_paused = False
+
+    broken_edges = {} 
+    obstacle_mode = False
 
     running = True
     while running:
+        clock.tick(FPS)
+
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                click_result = dashboard.handle_click(event.pos, graph, vehicles, broken_edges, event.button)
+                
+                if click_result == "pause":
+                    is_paused = not is_paused
+                elif click_result == "stop":
+                    is_paused = not is_paused
+                    if is_paused: dashboard.add_log("HỆ THỐNG: Đã dừng toàn bộ thời gian")
+                    else: clock.tick(FPS); dashboard.add_log("HỆ THỐNG: Tiếp tục mô phỏng")
+                        
+                elif click_result == "reset":
+                    vehicles = [create_random_civilian(graph) for _ in range(10)]
+                    customers.clear()
+                    broken_edges.clear() 
+                    focused_vehicle = None
+                    is_paused = False
+                    obstacle_mode = False
+                    dashboard.ui_rects['_state_sync']['obstacle_mode'] = False
+                    dashboard.add_log("HỆ THỐNG: Đã reset toàn bộ bản đồ")
+                    
+                elif click_result == "obstacle":
+                    obstacle_mode = not obstacle_mode
+                    dashboard.ui_rects['_state_sync']['obstacle_mode'] = obstacle_mode
+                    
+                elif isinstance(click_result, tuple):
+                    if click_result[0] == "START_SCENARIO":
+                        map_id = click_result[1]
+                        vehicles = [v for v in vehicles if v.v_id.startswith('CIV_')]
+                        customers.clear()
+                        broken_edges.clear()
+                        focused_vehicle = None
+                        customers.extend(spawn_scenario_customers(map_id, graph))
+                        dashboard.add_log(f"Đã tạo khách cho MAP {map_id}")
+                    elif click_result[0] == "SPAWN_TAXI":
+                        group_id = click_result[1]
+                        algo = click_result[2]
+                        spawn_taxi(group_id, algo, graph, vehicles, Vehicle)
+                        dashboard.add_log(f"Đã xuất phát xe: {algo}")
+                    elif click_result[0] == "FOCUS":
+                        focused_vehicle = click_result[1]
+                    elif click_result[0] == "NODE":
+                        focused_vehicle = None
+                    
+                    elif click_result[0] == "EDGE" and obstacle_mode:
+                        _, u, v_id, proj_pos, edge_dir = click_result
+                        edge_key = tuple(sorted((u, v_id)))
+                        
+                        edge_forward = (u, v_id)
+                        edge_backward = (v_id, u)
+                        
+                        obs_id = f"ROCK_{edge_key[0]}_{edge_key[1]}"
+                        
+                        if obs_id not in broken_edges:
+                            broken_edges[obs_id] = {
+                                'pos': proj_pos,
+                                'edges': [edge_forward, edge_backward]
+                            }
+                        
+                    elif click_result[0] == "REMOVE_BLOCK":
+                        obs_id = click_result[1]
+                        if obs_id in broken_edges:
+                            del broken_edges[obs_id]
 
-        edge_groups = {}
-        for v in vehicles:
-            if v.target_node_id and v.state not in ["STUCK_AT_OBSTACLE", "U_TURNING", "WAIT_U_TURN", "IDLE_IN_DEPOT"]:
-                edge = (v.current_edge_start_id, v.target_node_id)
-                if edge not in edge_groups:
-                    edge_groups[edge] = []
-                edge_groups[edge].append(v)
+        if not is_paused:
+            edge_groups = {}
+            for v in vehicles:
+                is_stuck = False
+                if v.target_node_id:
+                    current_edge = (v.current_edge_start_id, v.target_node_id)
+                    for obs in broken_edges.values():
+                        if current_edge in obs['edges']:
+                            if math.hypot(v.x - obs['pos'][0], v.y - obs['pos'][1]) < 35:
+                                v.state = "STUCK_AT_OBSTACLE"
+                                is_stuck = True
+                                break
+                
+                # Nếu xe không còn bị hòn đá nào chặn nữa, tự động chuyển về MOVING để di chuyển tiếp
+                if not is_stuck and v.state == "STUCK_AT_OBSTACLE":
+                    v.state = "MOVING"
 
-        for edge, cars in edge_groups.items():
-            tn = graph.nodes[edge[1]]
-            cars.sort(key=lambda c: math.hypot(c.x - tn.x, c.y - tn.y))
-            if cars:
-                cars[0].state = "MOVING"
-            for i in range(1, len(cars)):
-                d1 = math.hypot(cars[i-1].x - tn.x, cars[i-1].y - tn.y)
-                d2 = math.hypot(cars[i].x - tn.x, cars[i].y - tn.y)
-                if d2 - d1 < 45:
-                    cars[i].state = "SAFE_WAIT"
-                else:
-                    cars[i].state = "MOVING"
-
-        for v in vehicles:
-            if v.state != "SAFE_WAIT" and v.state != "IDLE_IN_DEPOT":
-                v.state = "MOVING"
-
-            if not v.target_node_id:
-                if v.current_node_id in EDGE_NODES:
-                    vehicles.remove(v)
-                    vehicles.append(create_random_civilian(graph))
+                if v.state == "STUCK_AT_OBSTACLE": 
                     continue
-                else:
-                    current = v.current_node_id
-                    next_choices = [e for e in edges_data if e[0] == current]
-                    if next_choices:
-                        next_node = random.choice(next_choices)[1]
-                        v.set_path([current, next_node], graph)
-                    else:
-                        random_start = random.choice(EDGE_NODES)
-                        v.current_node_id = random_start
-                        v.current_edge_start_id = random_start
-                        v.x, v.y = nodes_data[random_start]
-                        next_choices = [e for e in edges_data if e[0] == random_start]
-                        if next_choices:
-                            next_node = random.choice(next_choices)[1]
-                            v.set_path([random_start, next_node], graph)
 
-            v.update_position(graph)
+                if v.target_node_id and v.state != "STUCK_AT_OBSTACLE":
+                    edge = (v.current_edge_start_id, v.target_node_id)
+                    if edge not in edge_groups: edge_groups[edge] = []
+                    edge_groups[edge].append(v)
+
+            for edge, cars in edge_groups.items():
+                tn = graph.nodes[edge[1]]
+                cars.sort(key=lambda c: math.hypot(c.x - tn.x, c.y - tn.y))
+                if cars: cars[0].state = "MOVING"
+                for i in range(1, len(cars)):
+                    d1 = math.hypot(cars[i-1].x - tn.x, cars[i-1].y - tn.y)
+                    d2 = math.hypot(cars[i].x - tn.x, cars[i].y - tn.y)
+                    cars[i].state = "SAFE_WAIT" if (d2 - d1 < 45) else "MOVING"
+
+            for v in vehicles:
+                if v.state not in ["SAFE_WAIT", "STUCK_AT_OBSTACLE"]:
+                    v.state = "MOVING"
+
+                if not v.target_node_id:
+                    if v.current_node_id in EDGE_NODES and v.v_id.startswith('CIV_'):
+                        vehicles.remove(v)
+                        vehicles.append(create_random_civilian(graph))
+                        continue
+                    else:
+                        current = v.current_node_id
+                        next_choices = [e for e in edges_data if e[0] == current]
+                        
+                        valid_choices = []
+                        for e in next_choices:
+                            in_obstacle = False
+                            for obs in broken_edges.values():
+                                if (current, e[1]) in obs['edges']: in_obstacle = True; break
+                            if not in_obstacle: valid_choices.append(e)
+
+                        if valid_choices:
+                            v.set_path([current, random.choice(valid_choices)[1]], graph)
+                        elif next_choices: 
+                            v.set_path([current, random.choice(next_choices)[1]], graph)
+
+                v.update_position(graph)
 
         screen.fill(COLOR_BG)
         if bg_image:
             screen.blit(bg_image, (0, 0))
 
-        renderer.draw_vehicles(vehicles, graph, None, False, set())
-        renderer.draw_dashboard(dashboard.log_messages, dashboard.ui_rects, False, '', False)
-
+        renderer.draw_graph(graph, broken_edges, customers, set(), False)
+        renderer.draw_vehicles(vehicles, graph, focused_vehicle, False, set())
+        renderer.draw_dashboard(dashboard.log_messages, dashboard.ui_rects, is_paused, '', False)
+        
         pygame.display.flip()
-        clock.tick(FPS)
 
     pygame.quit()
 

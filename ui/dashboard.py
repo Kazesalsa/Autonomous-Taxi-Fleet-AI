@@ -5,23 +5,122 @@ from config import MAP_WIDTH, DASHBOARD_WIDTH
 class Dashboard:
     def __init__(self):
         self.log_messages = []
-        self.ui_rects = {
-            'pause': pygame.Rect(MAP_WIDTH + 20, 80, DASHBOARD_WIDTH - 40, 40),
-            'fog': pygame.Rect(MAP_WIDTH + 20, 130, DASHBOARD_WIDTH - 40, 40),
-            'customer': pygame.Rect(MAP_WIDTH + 20, 210, DASHBOARD_WIDTH - 40, 45),
-            'crosswalk': pygame.Rect(MAP_WIDTH + 20, 320, DASHBOARD_WIDTH - 40, 35),
-            'obstacle': pygame.Rect(MAP_WIDTH + 20, 365, DASHBOARD_WIDTH - 40, 35),
-            'ambulance': pygame.Rect(MAP_WIDTH + 20, 410, DASHBOARD_WIDTH - 40, 35)
+        self.metrics = {"distance": 0, "revenue": 0, "status_msg": "", "status_color": (255, 255, 255)}
+        self.active_map = 1
+        self.active_group = None
+        self.group_idx = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0}
+        self.last_click_time = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0}
+        self.algos = {
+            1: ["BFS", "DFS", "UCS"],
+            2: ["A*", "GBFS", "W-A*"],
+            3: ["Hill Climb", "Sim. Anneal", "Genetic"],
+            4: ["D* Lite", "RTAA*", "Online"],
+            5: ["Backtrack", "AC-3", "Fwd Chk"],
+            6: ["Minimax", "Alpha-Beta", "Expect"]
         }
+        
+        cw = (DASHBOARD_WIDTH - 50) // 2
+        c1 = MAP_WIDTH + 20
+        c2 = MAP_WIDTH + 30 + cw
+
+        self.ui_rects = {
+            'pause': pygame.Rect(MAP_WIDTH + 20, 550, DASHBOARD_WIDTH - 40, 40),
+            
+            # Hàng 1: Bắt đầu & Dừng (Y = 20)
+            'start': pygame.Rect(c1, 20, cw, 35),
+            'stop': pygame.Rect(c2, 20, cw, 35),
+            
+            # Hàng 2: Reset & Vật cản (Nằm chung hàng ở Y = 65)
+            'reset': pygame.Rect(c1, 65, cw, 35),
+            'obstacle': pygame.Rect(c2, 65, cw, 35),
+            
+            # Hàng 3: Kịch bản MAP (Xếp dọc, chiều rộng lớn để chứa trọn text, dịch xuống Y bắt đầu từ 115)
+            'map1': pygame.Rect(MAP_WIDTH + 20, 115, DASHBOARD_WIDTH - 40, 35),
+            'map2': pygame.Rect(MAP_WIDTH + 20, 155, DASHBOARD_WIDTH - 40, 35),
+            'map3': pygame.Rect(MAP_WIDTH + 20, 195, DASHBOARD_WIDTH - 40, 35),
+            
+            # Hàng 4: Các nhóm thuật toán (Dịch xuống Y bắt đầu từ 245)
+            'grp1': pygame.Rect(c1, 245, cw, 40),
+            'grp2': pygame.Rect(c2, 245, cw, 40),
+            'grp3': pygame.Rect(c1, 295, cw, 40),
+            'grp4': pygame.Rect(c2, 295, cw, 40),
+            'grp5': pygame.Rect(c1, 345, cw, 40),
+            'grp6': pygame.Rect(c2, 345, cw, 40),
+            '_state_sync': {}
+        }
+        self._sync_state()
 
     def add_log(self, message):
         self.log_messages.append(message)
         if len(self.log_messages) > 15: self.log_messages.pop(0)
 
-    def handle_click(self, pos, graph, vehicles, broken_edges):
+    def reset_scenario_data(self):
+        self.metrics = {"distance": 0, "revenue": 0, "status_msg": "", "status_color": (255, 255, 255)}
+        self._sync_state()
+
+    def _sync_state(self):
+        self.ui_rects['_state_sync'] = {
+            'active_map': self.active_map,
+            'active_group': self.active_group,
+            'group_idx': self.group_idx,
+            'algos': self.algos,
+            'metrics': self.metrics,
+            'obstacle_mode': False
+        }
+
+    def handle_click(self, pos, graph, vehicles, broken_edges, button=1):
         if pos[0] >= MAP_WIDTH:
-            for key, rect in self.ui_rects.items():
-                if rect.collidepoint(pos): return key
+            is_right_click = (button == 3)
+            clicked_ui = False
+            current_time = pygame.time.get_ticks()
+            
+            if self.ui_rects['pause'].collidepoint(pos):
+                return 'pause'
+                
+            if self.ui_rects['start'].collidepoint(pos):
+                return 'pause'  # Trả về tín hiệu đổi trạng thái pause/unpause
+                
+            if self.ui_rects['stop'].collidepoint(pos):
+                return 'stop'
+
+            if self.ui_rects['reset'].collidepoint(pos):
+                return 'reset'
+
+            if self.ui_rects['obstacle'].collidepoint(pos):
+                return 'obstacle'
+
+            for i in range(1, 4):
+                if self.ui_rects[f'map{i}'].collidepoint(pos):
+                    self.active_map = i
+                    self.reset_scenario_data()
+                    return ("START_SCENARIO", i)
+
+            for i in range(1, 7):
+                if self.ui_rects[f'grp{i}'].collidepoint(pos):
+                    if current_time - self.last_click_time[i] < 500 and button == 1:
+                        self.last_click_time[i] = current_time
+                        return ("SPAWN_TAXI", i, self.algos[i][self.group_idx[i]])
+                    
+                    self.last_click_time[i] = current_time
+                    
+                    if is_right_click:
+                        self.group_idx[i] = (self.group_idx[i] + 1) % 3
+                        self.active_group = i
+                    else:
+                        self.active_group = i if self.active_group != i else None
+                    clicked_ui = True
+
+            if clicked_ui:
+                if self.active_group == 3:
+                    self.metrics = {"distance": 315, "revenue": 200000, "status_msg": "VI PHAM: EP VIP GHEP XE", "status_color": (231, 76, 60)}
+                elif self.active_group == 5:
+                    self.metrics = {"distance": 710, "revenue": 200000, "status_msg": "THANH CONG: DAT CHUAN", "status_color": (46, 204, 113)}
+                else:
+                    self.metrics = {"distance": 0, "revenue": 0, "status_msg": "", "status_color": (255, 255, 255)}
+                
+                self._sync_state()
+                return "UI_UPDATED"
+
             return None
 
         for edge_id, obs in list(broken_edges.items()):
