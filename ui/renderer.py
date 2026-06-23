@@ -158,7 +158,6 @@ class Renderer:
             if show_fog and (v.current_edge_start_id not in reachable_nodes) and (v.target_node_id not in reachable_nodes):
                 continue
 
-            # Gán trực tiếp tọa độ thực tế để vẽ xe ngay trên đường nối
             vx = v.x
             vy = v.y
 
@@ -167,6 +166,7 @@ class Renderer:
             
             if v == focused_v: color = (255, 255, 255)
             elif v.is_ambulance: color = COLOR_AMBULANCE
+            elif hasattr(v, 'color'): color = v.color
             elif v.status in ["CARRYING", "TO_CUSTOMER"]: color = COLOR_TAXI_BUSY
             else: color = COLOR_TAXI
             
@@ -175,7 +175,7 @@ class Renderer:
             if v.is_ambulance:
                 pygame.draw.line(self.screen, (255,255,255), (vx - 6, vy), (vx + 6, vy), 3)
                 pygame.draw.line(self.screen, (255,255,255), (vx, vy - 6), (vx, vy + 6), 3)
-            else:
+            elif not hasattr(v, 'color'):
                 pygame.draw.rect(self.screen, (0,0,0), (vx - 4, vy - 2, 8, 4))
                 pygame.draw.circle(self.screen, (0, 0, 0), (int(vx + math.cos(v.angle)*5), int(vy + math.sin(v.angle)*5)), 2)
 

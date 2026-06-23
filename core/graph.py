@@ -52,4 +52,4 @@ class Graph:
             for edge in self.nodes[id1].edges:
                 if edge.target_id == id2:
                     return edge
-        return None\n
+        return None

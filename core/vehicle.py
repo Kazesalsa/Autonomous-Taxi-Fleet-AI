@@ -8,7 +8,7 @@ class Vehicle:
         self.current_node_id = start_node_id
         self.path = []
         self.is_ambulance = is_ambulance
-        self.lane = 0 if is_ambulance else random.choice([0, 1])
+        self.lane = 0
         self.x = 0
         self.y = 0
         self.target_node_id = None
@@ -40,6 +40,8 @@ class Vehicle:
                 n1 = graph.nodes[self.current_node_id]
                 self.x = n1.x
                 self.y = n1.y
+                n2 = graph.nodes[self.target_node_id]
+                self.angle = math.atan2(n2.y - n1.y, n2.x - n1.x)
 
     def update_position(self, graph):
         if self.state in ["STUCK_AT_OBSTACLE", "WAIT_CROSSWALK", "IDLE_IN_DEPOT"]: return False
@@ -75,18 +77,13 @@ class Vehicle:
         dx_road = target_node.x - start_node.x
         dy_road = target_node.y - start_node.y
 
-        # Điểm đến chính xác là tọa độ của target_node, không cộng thêm bất kỳ độ lệch nào
         dx = target_node.x - self.x
         dy = target_node.y - self.y
         dist = math.hypot(dx, dy)
         
         if dist > 0: 
-            target_angle = math.atan2(dy, dx)
-            # KHỬ RUNG LẮC: Bù trừ góc quay mềm mại (Low-pass Filter) thay vì bẻ góc gắt
-            diff = (target_angle - self.angle + math.pi) % (2 * math.pi) - math.pi
-            self.angle += diff * 0.2
+            self.angle = math.atan2(dy, dx)
 
-        # --- XỬ LÝ ĐÈN GIAO THÔNG ---
         stop_dist = (ROAD_WIDTH/2 + 10)
         dist_to_center = math.hypot(target_node.x - self.x, target_node.y - self.y)
         if getattr(target_node, 'has_light', False) and target_node.light_state in ['RED', 'YELLOW'] and not self.is_ambulance and dist_to_center < stop_dist:
@@ -101,7 +98,9 @@ class Vehicle:
             if my_light_state in ['RED', 'YELLOW']:
                 return False
 
-        if dist < speed:
+        if dist <= speed:
+            self.x = target_node.x
+            self.y = target_node.y
             self.current_node_id = self.target_node_id
             self.current_edge_start_id = self.current_node_id
             if getattr(target_node, 'csp_locked', False) and self.is_ambulance: 
@@ -109,10 +108,10 @@ class Vehicle:
 
             if self.path: 
                 self.target_node_id = self.path.pop(0)
+                next_node = graph.nodes[self.target_node_id]
+                self.angle = math.atan2(next_node.y - self.y, next_node.x - self.x)
             else: 
                 self.target_node_id = None
-                self.x = target_node.x
-                self.y = target_node.y
         else:
             self.x += (dx / dist) * speed
             self.y += (dy / dist) * speed
