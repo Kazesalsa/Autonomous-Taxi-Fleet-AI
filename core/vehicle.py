@@ -26,6 +26,12 @@ class Vehicle:
         self.customer_goal = None
         self.state = "IDLE_IN_DEPOT"
         
+        # Khởi tạo thuộc tính lưu trữ quãng đường và doanh thu tích lũy thực tế cho Taxi
+        if v_id.startswith('TX_'):
+            self.distance_traveled = 0
+            self.revenue_earned = 0
+            self.has_picked_up = False
+        
         if is_ambulance: self.status = "AMBULANCE"
 
     def set_path(self, path, graph):
@@ -98,7 +104,10 @@ class Vehicle:
             if my_light_state in ['RED', 'YELLOW']:
                 return False
 
+        actual_step = 0
+
         if dist <= speed:
+            actual_step = dist
             self.x = target_node.x
             self.y = target_node.y
             self.current_node_id = self.target_node_id
@@ -113,7 +122,23 @@ class Vehicle:
             else: 
                 self.target_node_id = None
         else:
+            actual_step = speed
             self.x += (dx / dist) * speed
             self.y += (dy / dist) * speed
             
+        # Tích lũy quãng đường và phân chia chi phí/doanh thu thực tế theo hành trình đón khách
+        if self.v_id.startswith('TX_'):
+            if not hasattr(self, 'distance_traveled'): self.distance_traveled = 0
+            if not hasattr(self, 'revenue_earned'): self.revenue_earned = 0
+            if not hasattr(self, 'has_picked_up'): self.has_picked_up = False
+
+            self.distance_traveled += actual_step
+            
+            if not self.has_picked_up:
+                # Giai đoạn đi đón: 10px = 1000VND -> 1px = 100VND
+                self.revenue_earned += actual_step * 100
+            else:
+                # Giai đoạn chở khách kèm lợi nhuận: 10px = 1500VND -> 1px = 150VND
+                self.revenue_earned += actual_step * 150
+
         return False

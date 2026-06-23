@@ -30,22 +30,22 @@ class Dashboard:
             'start': pygame.Rect(c1, 20, cw, 35),
             'stop': pygame.Rect(c2, 20, cw, 35),
             
-            # Hàng 2: Reset & Vật cản (Nằm chung hàng ở Y = 65)
+            # Hàng 2: Reset & Vật cản (Y = 65)
             'reset': pygame.Rect(c1, 65, cw, 35),
             'obstacle': pygame.Rect(c2, 65, cw, 35),
             
-            # Hàng 3: Kịch bản MAP (Xếp dọc, chiều rộng lớn để chứa trọn text, dịch xuống Y bắt đầu từ 115)
+            # Hàng 3: Kịch bản MAP (Xếp dọc tránh đè chữ)
             'map1': pygame.Rect(MAP_WIDTH + 20, 115, DASHBOARD_WIDTH - 40, 35),
             'map2': pygame.Rect(MAP_WIDTH + 20, 155, DASHBOARD_WIDTH - 40, 35),
             'map3': pygame.Rect(MAP_WIDTH + 20, 195, DASHBOARD_WIDTH - 40, 35),
             
-            # Hàng 4: Các nhóm thuật toán (Dịch xuống Y bắt đầu từ 245)
-            'grp1': pygame.Rect(c1, 245, cw, 40),
-            'grp2': pygame.Rect(c2, 245, cw, 40),
-            'grp3': pygame.Rect(c1, 295, cw, 40),
-            'grp4': pygame.Rect(c2, 295, cw, 40),
-            'grp5': pygame.Rect(c1, 345, cw, 40),
-            'grp6': pygame.Rect(c2, 345, cw, 40),
+            # Hàng 4: Các nhóm thuật toán (Chiều cao thu nhỏ về 32px để tiết kiệm không gian)
+            'grp1': pygame.Rect(c1, 245, cw, 32),
+            'grp2': pygame.Rect(c2, 245, cw, 32),
+            'grp3': pygame.Rect(c1, 285, cw, 32),
+            'grp4': pygame.Rect(c2, 285, cw, 32),
+            'grp5': pygame.Rect(c1, 325, cw, 32),
+            'grp6': pygame.Rect(c2, 325, cw, 32),
             '_state_sync': {}
         }
         self._sync_state()
@@ -59,6 +59,8 @@ class Dashboard:
         self._sync_state()
 
     def _sync_state(self):
+        # Đảm bảo giữ cấu trúc taxi_leaderboard động để cập nhật điểm từ xe thực tế
+        leaderboard = self.metrics.get('taxi_leaderboard', {})
         self.ui_rects['_state_sync'] = {
             'active_map': self.active_map,
             'active_group': self.active_group,
@@ -76,16 +78,12 @@ class Dashboard:
             
             if self.ui_rects['pause'].collidepoint(pos):
                 return 'pause'
-                
             if self.ui_rects['start'].collidepoint(pos):
-                return 'pause'  # Trả về tín hiệu đổi trạng thái pause/unpause
-                
+                return 'pause'
             if self.ui_rects['stop'].collidepoint(pos):
                 return 'stop'
-
             if self.ui_rects['reset'].collidepoint(pos):
                 return 'reset'
-
             if self.ui_rects['obstacle'].collidepoint(pos):
                 return 'obstacle'
 
@@ -104,20 +102,14 @@ class Dashboard:
                     self.last_click_time[i] = current_time
                     
                     if is_right_click:
-                        self.group_idx[i] = (self.group_idx[i] + 1) % 3
+                        self.group_idx[i] = (self.group_idx[i] + 1) % len(self.algos[i])
                         self.active_group = i
                     else:
                         self.active_group = i if self.active_group != i else None
                     clicked_ui = True
 
             if clicked_ui:
-                if self.active_group == 3:
-                    self.metrics = {"distance": 315, "revenue": 200000, "status_msg": "VI PHAM: EP VIP GHEP XE", "status_color": (231, 76, 60)}
-                elif self.active_group == 5:
-                    self.metrics = {"distance": 710, "revenue": 200000, "status_msg": "THANH CONG: DAT CHUAN", "status_color": (46, 204, 113)}
-                else:
-                    self.metrics = {"distance": 0, "revenue": 0, "status_msg": "", "status_color": (255, 255, 255)}
-                
+                # ĐÃ LOẠI BỎ TOÀN BỘ LOGIC TỰ TĂNG KHOẢNG CÁCH/TIỀN GIẢ LẬP ĐỂ KHÔNG BỊ SAI SỐ
                 self._sync_state()
                 return "UI_UPDATED"
 

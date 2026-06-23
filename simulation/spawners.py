@@ -1,38 +1,75 @@
 import random
 
-EDGE_NODES = ['N10', 'N24', 'N31', 'N27', 'N13', 'N20', 'N45', 'N57', 'N82', 'N81', 'N80', 'N79', 'N38', 'N37', 'N35', 'N6', 'N1', 'N17']
+# Đồng bộ mảng EDGE_NODES chuẩn chữ Hoa đồng nhất với hệ thống bản đồ mới
+EDGE_NODES = ['N1', 'N17', 'N6', 'N35', 'N79', 'N80', 'N82', 'N81', 'N45', 'N57', 'N20', 'N13', 'N27', 'N31', 'N10', 'N24']
 
 def spawn_scenario_customers(map_id, graph):
-    customers = []
-    if map_id == 1:
-        start = random.choice(list(graph.nodes.keys()))
-        goal = random.choice(list(graph.nodes.keys()))
-        customers.append({'id': 1, 'start': start, 'goal': goal, 'status': 'WAITING', 'agree_to_share': True})
-    elif map_id == 2:
-        customers = [
-            {'id': 'A', 'start': 'N1', 'goal': 'N12', 'status': 'WAITING', 'agree_to_share': True},
-            {'id': 'B', 'start': 'N2', 'goal': 'N13', 'status': 'WAITING', 'agree_to_share': True},
-            {'id': 'C_VIP', 'start': 'N3', 'goal': 'N16', 'status': 'WAITING', 'agree_to_share': False},
-            {'id': 'D', 'start': 'N5', 'goal': 'N41', 'status': 'WAITING', 'agree_to_share': True}
-        ]
-    return customers
+    """
+    Sinh danh sách khách hàng dựa trên kịch bản MAP được chọn.
+    Mỗi khách hàng là một dictionary có cấu trúc:
+    {
+        'id': str,
+        'start': str (node_id),
+        'goal': str (node_id),
+        'agree_to_share': bool (tùy chọn)
+    }
+    """
+    customers_list = []
+    all_nodes = list(graph.nodes.keys())
+    if not all_nodes:
+        return customers_list
 
-def spawn_taxi(group_id, algo_name, graph, vehicles_list, VehicleClass):
+    # Kịch bản 1: Tạo 5 khách hàng phân bố ngẫu nhiên hoàn toàn
+    if map_id == 1:
+        for i in range(5):
+            start = random.choice(all_nodes)
+            goal = random.choice(all_nodes)
+            while goal == start:
+                goal = random.choice(all_nodes)
+            customers_list.append({
+                'id': f"CUST_M1_{i+1}",
+                'start': start,
+                'goal': goal
+            })
+
+    # Kịch bản 2: Tạo 4 khách hàng ngẫu nhiên có thêm thuộc tính đồng ý / không ghép khách
+    elif map_id == 2:
+        for i in range(4):
+            start = random.choice(all_nodes)
+            goal = random.choice(all_nodes)
+            while goal == start:
+                goal = random.choice(all_nodes)
+            customers_list.append({
+                'id': f"CUST_M2_{i+1}",
+                'start': start,
+                'goal': goal,
+                'agree_to_share': random.choice([True, False]) # Đồng ý hoặc từ chối đi chung xe
+            })
+
+    # Kịch bản 3: Khởi tạo 4 khách hàng ngẫu nhiên ban đầu
+    elif map_id == 3:
+        for i in range(4):
+            start = random.choice(all_nodes)
+            goal = random.choice(all_nodes)
+            while goal == start:
+                goal = random.choice(all_nodes)
+            customers_list.append({
+                'id': f"CUST_M3_{i+1}",
+                'start': start,
+                'goal': goal
+            })
+
+    return customers_list
+
+
+def spawn_taxi(group_id, algo_name, graph, vehicles_list, vehicle_class):
+    """
+    Sinh xe taxi xuất phát ngẫu nhiên từ danh sách các nút rìa cố định hệ thống
+    """
     start_node = random.choice(EDGE_NODES)
     v_id = f"TX_{len(vehicles_list) + 1}_{algo_name.replace(' ', '')}"
     
-    new_taxi = VehicleClass(v_id, start_node)
-    new_taxi.algo_group = group_id
-    new_taxi.algo_name = algo_name
-    
-    node_obj = graph.nodes[start_node]
-    new_taxi.x = node_obj.x
-    new_taxi.y = node_obj.y
-    new_taxi.current_node_id = start_node
-    new_taxi.current_edge_start_id = start_node
-    new_taxi.target_node_id = None
-    new_taxi.angle = 0.0
-    new_taxi.state = "MOVING"
-    
-    vehicles_list.append(new_taxi)
-    return new_taxi
+    v = vehicle_class(v_id, start_node)
+    v.state = "MOVING"
+    vehicles_list.append(v)
+    return v

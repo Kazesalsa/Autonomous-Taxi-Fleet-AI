@@ -10,32 +10,48 @@ class Renderer:
         self.title_font = title_font
 
     def draw_graph(self, graph, broken_edges, customers, reachable_edges, show_fog):
-        """Vẽ các hòn đá vật cản mỹ thuật kiến trúc đa giác 3D lên tọa độ đường bị chặn"""
+        """Vẽ các hòn đá vật cản và khách hàng kèm hiệu ứng thu phóng lên bản đồ"""
+        # --- LÝ TRÌNH VẼ VẬT CẢN HÒN ĐÁ 3D ---
         for obs_id, obs in broken_edges.items():
             bx, by = int(obs['pos'][0]), int(obs['pos'][1])
-            
-            # 1. Vẽ bóng đổ hòn đá dưới mặt đường (Màu đen mờ thấu quang)
             shadow_surface = pygame.Surface((40, 24), pygame.SRCALPHA)
             pygame.draw.ellipse(shadow_surface, (20, 20, 20, 130), (0, 0, 40, 24))
             self.screen.blit(shadow_surface, (bx - 20, by - 8))
             
-            # 2. Định nghĩa cấu trúc các mảng khối tạo hòn đá góc cạnh mỹ thuật (3D Rock)
-            # Khối chính (Thân đá xám đậm)
             pts_main = [(bx-14, by-2), (bx-6, by-15), (bx+8, by-17), (bx+16, by-4), (bx+10, by+10), (bx-10, by+8)]
             pygame.draw.polygon(self.screen, (108, 114, 123), pts_main)
             
-            # Mảng khối tối khuất ánh sáng (Phía dưới và bên phải)
             pts_dark = [(bx-10, by+8), (bx+10, by+10), (bx+16, by-4), (bx+4, by+2), (bx-2, by-1)]
             pygame.draw.polygon(self.screen, (75, 80, 89), pts_dark)
             
-            # Mảng khối highlight đón nắng từ góc trên bên trái (Màu xám sáng)
             pts_light = [(bx-14, by-2), (bx-6, by-15), (bx+8, by-17), (bx+2, by-8), (bx-6, by-5)]
             pygame.draw.polygon(self.screen, (148, 155, 165), pts_light)
             
-            # Vẽ đường gân nứt góc cạnh sắc nét bao quanh và xuyên dọc hòn đá
             pygame.draw.polygon(self.screen, (45, 48, 53), pts_main, 2)
             pygame.draw.line(self.screen, (45, 48, 53), (bx-6, by-15), (bx-2, by-1), 2)
             pygame.draw.line(self.screen, (45, 48, 53), (bx+8, by-17), (bx+4, by+2), 2)
+
+        # --- LÝ TRÌNH VẼ KHÁCH HÀNG CHẤM TRÒN THU PHÓNG ---
+        current_time = pygame.time.get_ticks()
+        # Tạo hiệu ứng xung số từ 0.0 đến 1.0 thay đổi liên tục theo thời gian
+        pulse_factor = (math.sin(current_time * 0.007) + 1.0) / 2.0  
+        
+        for cust in customers:
+            if cust['start'] in graph.nodes:
+                node = graph.nodes[cust['start']]
+                cx, cy = node.x, node.y
+                
+                # Bán kính vòng tròn hiệu ứng bên ngoài co giãn từ 8 đến 16 pixel
+                outer_radius = int(8 + pulse_factor * 8)
+                
+                # Vẽ vòng tròn mờ lan tỏa phía dưới (Hiệu ứng sóng radar)
+                glow_surf = pygame.Surface((outer_radius * 2, outer_radius * 2), pygame.SRCALPHA)
+                pygame.draw.circle(glow_surf, (46, 204, 113, 80), (outer_radius, outer_radius), outer_radius)
+                self.screen.blit(glow_surf, (cx - outer_radius, cy - outer_radius))
+                
+                # Vẽ chấm tròn lõi cứng định vị ở tâm màu xanh lục sáng
+                pygame.draw.circle(self.screen, (46, 204, 113), (cx, cy), 6)
+                pygame.draw.circle(self.screen, (255, 255, 255), (cx, cy), 6, 1) # Viền trắng mảnh
 
     def draw_vehicles(self, vehicles, graph, focused_v, show_fog, reachable_nodes):
         for v in vehicles:
@@ -47,6 +63,7 @@ class Renderer:
             is_tx = v.v_id.startswith('TX_')
             L, W = (32, 16) if is_tx else (22, 11)
             
+            # Gán màu nguyên bản của xe, loại bỏ hoàn toàn logic đổi màu trắng khi nhấp chọn xe (focus)
             if is_tx: body_c = (245, 185, 15)
             elif hasattr(v, 'color'): body_c = v.color
             else: body_c = (189, 195, 199)
@@ -88,6 +105,7 @@ class Renderer:
                 lbl = self.bold_font.render(display_id, True, (241, 196, 15))
                 self.screen.blit(lbl, (vx - lbl.get_width() / 2, vy - 28))
             
+            # ĐÃ XÓA logic vẽ các chuỗi text trạng thái phụ ("DỪNG", "BỊ CHẶN") trên đầu xe
 
     def draw_dashboard(self, log_messages, ui_rects, is_paused, select_mode, show_fog):
         pygame.draw.rect(self.screen, COLOR_DASHBOARD, (MAP_WIDTH, 0, DASHBOARD_WIDTH, HEIGHT))
@@ -105,35 +123,47 @@ class Renderer:
         self._draw_btn(ui_rects['start'], "Bắt đầu", (46, 204, 113))
         self._draw_btn(ui_rects['stop'], "Dừng", (231, 76, 60))
 
-        # Hàng 2: Đổi màu nút Vật cản thành đỏ khi đang kích hoạt chế độ đặt vật cản
+        # Hàng 2: Reset & Vật cản
         if 'reset' in ui_rects:
             self._draw_btn(ui_rects['reset'], "Reset", (52, 152, 219))
         if 'obstacle' in ui_rects:
             obs_btn_color = (231, 76, 60) if obs_mode_on else (149, 165, 166)
             self._draw_btn(ui_rects['obstacle'], "Vật cản", obs_btn_color)
 
+        # Hàng 3: Kịch bản MAP dọc
         for i in range(1, 4):
             color = (52, 152, 219) if active_map == i else (50, 50, 50)
             self._draw_btn(ui_rects[f'map{i}'], f"Kịch bản MAP {i}", color)
 
+        # Hàng 4: 6 nhóm thuật toán Panel Panel
         for i in range(1, 7):
             color = (241, 196, 15) if active_group == i else (60, 60, 60)
             algo_name = algos[i][group_idx[i]]
             self._draw_btn(ui_rects[f'grp{i}'], f"N{i}: {algo_name}", color, use_small=True)
 
+        # BẢNG SO SÁNH HIỆU NĂNG REAL-TIME (Tọa độ Y được căn xuống 385 tránh va chạm đè chữ)
+        self.screen.blit(self.title_font.render("SO SÁNH HIỆU NĂNG", True, (241, 196, 15)), (MAP_WIDTH + 20, 385))
+        
+        # Tiêu đề cột
+        self.screen.blit(self.bold_font.render("Thuật toán", True, (200, 200, 200)), (MAP_WIDTH + 20, 420))
+        self.screen.blit(self.bold_font.render("Quãng đường", True, (200, 200, 200)), (MAP_WIDTH + 115, 420))
+        self.screen.blit(self.bold_font.render("Doanh thu", True, (200, 200, 200)), (MAP_WIDTH + 210, 420))
+        
+        # Đường gạch chân tiêu đề
+        pygame.draw.line(self.screen, (100, 100, 110), (MAP_WIDTH + 20, 440), (MAP_WIDTH + DASHBOARD_WIDTH - 20, 440), 1)
 
-        if metrics.get('status_msg'):
-            self.screen.blit(self.bold_font.render(metrics['status_msg'], True, metrics.get('status_color', (255,255,255))), (MAP_WIDTH + 20, 415))
-
-        self.screen.blit(self.bold_font.render("Log Trạng Thái Phân Công", True, (200, 200, 255)), (MAP_WIDTH + 20, 445))
-        y_offset = 470
-        for msg in log_messages[-3:]:
-            color = (255, 255, 255)
-            if "CẢNH BÁO" in msg or "KẸT" in msg or "SỰ CỐ" in msg or "VI PHẠM" in msg: color = (255, 100, 100)
-            elif "Đã phân công" in msg or "Hoàn thành" in msg or "THÀNH CÔNG" in msg: color = (100, 255, 100)
-            elif "A*" in msg or "BFS" in msg or "CSP" in msg or "Local Search" in msg: color = (241, 196, 15)
-            self.screen.blit(self.font.render(msg, True, color), (MAP_WIDTH + 20, y_offset))
-            y_offset += 24
+        leaderboard = metrics.get('taxi_leaderboard', {})
+        y_row = 450
+        
+        for name, data in leaderboard.items():
+            # Cột 1: Tên thuật toán định dạng (Ví dụ: BFS_1)
+            self.screen.blit(self.font.render(name, True, (255, 255, 255)), (MAP_WIDTH + 20, y_row))
+            # Cột 2: Quãng đường thực xe chạy tích lũy từ vị trí (px)
+            self.screen.blit(self.font.render(f"{data['distance']} px", True, (255, 255, 255)), (MAP_WIDTH + 115, y_row))
+            # Cột 3: Doanh thu thực tế của xe
+            self.screen.blit(self.font.render(f"{data['revenue']:,}đ", True, (46, 204, 113)), (MAP_WIDTH + 210, y_row))
+            
+            y_row += 24
 
     def _draw_btn(self, rect, text, color, use_small=False):
         pygame.draw.rect(self.screen, color, rect, border_radius=6)
@@ -141,3 +171,6 @@ class Renderer:
         fnt = self.font if use_small else self.bold_font
         txt = fnt.render(text, True, (0, 0, 0) if color[0] > 200 or color == (46, 204, 113) else (255,255,255))
         self.screen.blit(txt, (rect.centerx - txt.get_width() / 2, rect.centery - txt.get_height() / 2))
+
+    def draw_focused_vehicle_ui(self, vehicle):
+        pass
