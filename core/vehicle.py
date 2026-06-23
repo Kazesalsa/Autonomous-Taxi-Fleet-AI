@@ -36,9 +36,10 @@ class Vehicle:
             self.current_node_id = self.path.pop(0)
             self.current_edge_start_id = self.current_node_id
             self.target_node_id = self.path[0]
-            if self.current_node_id in graph.nodes:
-                self.x = graph.nodes[self.current_node_id].x
-                self.y = graph.nodes[self.current_node_id].y
+            if self.current_node_id in graph.nodes and self.target_node_id in graph.nodes:
+                n1 = graph.nodes[self.current_node_id]
+                self.x = n1.x
+                self.y = n1.y
 
     def update_position(self, graph):
         if self.state in ["STUCK_AT_OBSTACLE", "WAIT_CROSSWALK", "IDLE_IN_DEPOT"]: return False
@@ -66,20 +67,41 @@ class Vehicle:
             return True
 
         target_node = graph.nodes[self.target_node_id]
+        start_node = graph.nodes[self.current_edge_start_id]
+        
         speed = VEHICLE_SPEED_BASE * 1.4 if self.is_ambulance else VEHICLE_SPEED_BASE
         if not self.is_ambulance and self.state in ["YIELD_INNER", "YIELD_OUTER"]: speed *= 0.3
 
-        dx = target_node.x - self.x
-        dy = target_node.y - self.y
-        dist = (dx**2 + dy**2)**0.5
-        
-        if dist > 0: self.angle = math.atan2(dy, dx)
+        # HỦY BỎ LỆCH 8 PIXEL. Xe chạy chính xác vào các NODE bạn đã đánh dấu
+        dx_road = target_node.x - start_node.x
+        dy_road = target_node.y - start_node.y
+        road_dist = math.hypot(dx_road, dy_road)
 
+        if road_dist > 0:
+            nx = -dy_road / road_dist
+            ny = dx_road / road_dist
+        else:
+            nx, ny = 0, 0
+
+        # Chỉ tấp lề khi cần nhường Cứu thương
+        target_x = target_node.x + nx * self.pull_over_offset
+        target_y = target_node.y + ny * self.pull_over_offset
+
+        dx = target_x - self.x
+        dy = target_y - self.y
+        dist = math.hypot(dx, dy)
+        
+        if dist > 0: 
+            target_angle = math.atan2(dy, dx)
+            # KHỬ RUNG LẮC: Bù trừ góc quay mềm mại (Low-pass Filter) thay vì bẻ góc gắt
+            diff = (target_angle - self.angle + math.pi) % (2 * math.pi) - math.pi
+            self.angle += diff * 0.2
+
+        # --- XỬ LÝ ĐÈN GIAO THÔNG ---
         stop_dist = (ROAD_WIDTH/2 + 10)
-        if target_node.has_light and target_node.light_state in ['RED', 'YELLOW'] and not self.is_ambulance and dist < stop_dist:
-            dx_edge = target_node.x - graph.nodes[self.current_edge_start_id].x
-            dy_edge = target_node.y - graph.nodes[self.current_edge_start_id].y
-            axis = 'H' if abs(dx_edge) > abs(dy_edge) else 'V'
+        dist_to_center = math.hypot(target_node.x - self.x, target_node.y - self.y)
+        if getattr(target_node, 'has_light', False) and target_node.light_state in ['RED', 'YELLOW'] and not self.is_ambulance and dist_to_center < stop_dist:
+            axis = 'H' if abs(dx_road) > abs(dy_road) else 'V'
             
             my_light_state = 'RED'
             if target_node.light_state == 'H_GREEN' and axis == 'H': my_light_state = 'GREEN'
@@ -93,14 +115,15 @@ class Vehicle:
         if dist < speed:
             self.current_node_id = self.target_node_id
             self.current_edge_start_id = self.current_node_id
-            if self.is_ambulance and target_node.csp_locked: target_node.csp_locked = False
+            if getattr(target_node, 'csp_locked', False) and self.is_ambulance: 
+                target_node.csp_locked = False
 
-            if self.path: self.target_node_id = self.path.pop(0)
-            else: self.target_node_id = None
-            
-            if self.current_node_id in graph.nodes:
-                self.x = graph.nodes[self.current_node_id].x
-                self.y = graph.nodes[self.current_node_id].y
+            if self.path: 
+                self.target_node_id = self.path.pop(0)
+            else: 
+                self.target_node_id = None
+                self.x = target_node.x
+                self.y = target_node.y
         else:
             self.x += (dx / dist) * speed
             self.y += (dy / dist) * speed
