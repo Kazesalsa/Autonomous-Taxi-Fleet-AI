@@ -41,9 +41,15 @@ class Graph:
             n1.add_edge(id2, dist, traffic_factor)
             n2.add_edge(id1, dist, traffic_factor)
 
+    def add_directional_edge(self, from_id, to_id, traffic_factor=0.0):
+        if from_id in self.nodes and to_id in self.nodes:
+            n1, n2 = self.nodes[from_id], self.nodes[to_id]
+            dist = math.hypot(n1.x - n2.x, n1.y - n2.y)
+            n1.add_edge(to_id, dist, traffic_factor)
+
     def get_edge(self, id1, id2):
         if id1 in self.nodes:
             for edge in self.nodes[id1].edges:
                 if edge.target_id == id2:
                     return edge
-        return None
+        return None\n
