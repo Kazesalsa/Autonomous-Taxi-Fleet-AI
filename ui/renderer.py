@@ -158,10 +158,9 @@ class Renderer:
             if show_fog and (v.current_edge_start_id not in reachable_nodes) and (v.target_node_id not in reachable_nodes):
                 continue
 
-            base_offset = 4 if v.is_ambulance else LANE_OFFSETS[v.lane]
-            offset = base_offset + v.pull_over_offset
-            vx = v.x + math.cos(v.angle + math.pi/2) * offset
-            vy = v.y + math.sin(v.angle + math.pi/2) * offset
+            # Gán trực tiếp tọa độ thực tế để vẽ xe ngay trên đường nối
+            vx = v.x
+            vy = v.y
 
             size = (26, 14) if v.is_ambulance else (22, 12)
             pts = self._get_rotated_points(vx, vy, size[0], size[1], v.angle)

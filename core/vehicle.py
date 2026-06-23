@@ -72,23 +72,12 @@ class Vehicle:
         speed = VEHICLE_SPEED_BASE * 1.4 if self.is_ambulance else VEHICLE_SPEED_BASE
         if not self.is_ambulance and self.state in ["YIELD_INNER", "YIELD_OUTER"]: speed *= 0.3
 
-        # HỦY BỎ LỆCH 8 PIXEL. Xe chạy chính xác vào các NODE bạn đã đánh dấu
         dx_road = target_node.x - start_node.x
         dy_road = target_node.y - start_node.y
-        road_dist = math.hypot(dx_road, dy_road)
 
-        if road_dist > 0:
-            nx = -dy_road / road_dist
-            ny = dx_road / road_dist
-        else:
-            nx, ny = 0, 0
-
-        # Chỉ tấp lề khi cần nhường Cứu thương
-        target_x = target_node.x + nx * self.pull_over_offset
-        target_y = target_node.y + ny * self.pull_over_offset
-
-        dx = target_x - self.x
-        dy = target_y - self.y
+        # Điểm đến chính xác là tọa độ của target_node, không cộng thêm bất kỳ độ lệch nào
+        dx = target_node.x - self.x
+        dy = target_node.y - self.y
         dist = math.hypot(dx, dy)
         
         if dist > 0: 

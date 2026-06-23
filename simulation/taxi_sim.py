@@ -438,14 +438,9 @@ def run_simulation():
                         v.start_uturn_angle = v.angle
 
             for v in all_cars: 
-                if v.state not in ["U_TURNING", "STUCK_AT_OBSTACLE", "WAIT_U_TURN", "WAIT_CROSSWALK", "IDLE_IN_DEPOT"]: v.state = "MOVING"
-                
-                target_offset = 0.0
-                if v.state == "YIELD_INNER" and not getattr(v, 'is_ambulance', False): target_offset = 4
-                elif v.state == "YIELD_OUTER" and not getattr(v, 'is_ambulance', False): target_offset = 12
-                
-                if v.pull_over_offset < target_offset: v.pull_over_offset += 1.5
-                elif v.pull_over_offset > target_offset: v.pull_over_offset -= 1.5
+                if v.state not in ["U_TURNING", "STUCK_AT_OBSTACLE", "WAIT_U_TURN", "WAIT_CROSSWALK", "IDLE_IN_DEPOT", "SAFE_WAIT"]: 
+                    v.state = "MOVING"
+                v.pull_over_offset = 0.0 # Ép cứng không có độ lệch
 
             edge_groups = {}
             for v in all_cars:
@@ -454,31 +449,30 @@ def run_simulation():
                     if edge not in edge_groups: edge_groups[edge] = []
                     edge_groups[edge].append(v)
 
-            # LUẬT GIAO THÔNG: Giữ khoảng cách tối thiểu, không vượt nhau
+            # LUẬT GIAO THÔNG: Giữ khoảng cách tối thiểu, không vượt nhau (Tất cả chạy 1 hàng dọc)
             for edge, cars in edge_groups.items():
                 tn = graph.nodes[edge[1]]
                 cars.sort(key=lambda c: math.hypot(c.x - tn.x, c.y - tn.y))
                 
-                for l in [0, 1]:
-                    lane_cars = [c for c in cars if c.lane == l]
-                    for i in range(1, len(lane_cars)):
-                        d1 = math.hypot(lane_cars[i-1].x - tn.x, lane_cars[i-1].y - tn.y)
-                        d2 = math.hypot(lane_cars[i].x - tn.x, lane_cars[i].y - tn.y)
-                        if d2 - d1 < 40 and not getattr(lane_cars[i], 'is_ambulance', False): 
-                            if lane_cars[i].state != "WAIT_CROSSWALK": lane_cars[i].state = "SAFE_WAIT"
-                        elif d2 - d1 < 40 and getattr(lane_cars[i], 'is_ambulance', False) and getattr(lane_cars[i-1], 'is_ambulance', False):
-                            lane_cars[i].state = "SAFE_WAIT"
+                # Kiểm tra va chạm: Xe sau phải dừng nếu xe trước quá gần
+                for i in range(1, len(cars)):
+                    d1 = math.hypot(cars[i-1].x - tn.x, cars[i-1].y - tn.y)
+                    d2 = math.hypot(cars[i].x - tn.x, cars[i].y - tn.y)
+                    if d2 - d1 < 45 and not getattr(cars[i], 'is_ambulance', False): 
+                        if cars[i].state != "WAIT_CROSSWALK": cars[i].state = "SAFE_WAIT"
+                    elif d2 - d1 < 45 and getattr(cars[i], 'is_ambulance', False) and getattr(cars[i-1], 'is_ambulance', False):
+                        cars[i].state = "SAFE_WAIT"
 
+                # Xử lý khi có xe cứu thương phía sau: Các xe dân sự/Taxi đứng im chờ
                 ambs = [c for c in cars if getattr(c, 'is_ambulance', False)]
                 if ambs:
                     amb_dist = math.hypot(ambs[0].x - tn.x, ambs[0].y - tn.y)
                     for c in cars:
                         if not getattr(c, 'is_ambulance', False):
                             c_dist = math.hypot(c.x - tn.x, c.y - tn.y)
+                            # Nếu xe cứu thương ở phía sau và khoảng cách gần, tự động dừng lại (không tấp lề nữa)
                             if c_dist < amb_dist and (amb_dist - c_dist) < 220:
-                                if c.lane == 0: c.state = "YIELD_INNER"
-                                else: c.state = "YIELD_OUTER"
-
+                                c.state = "SAFE_WAIT"
             # Cập nhật TAXI và Cứu thương
             for v in vehicles[:]:
                 if v.update_position(graph):
