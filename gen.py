@@ -1,69 +1,62 @@
 import os
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-graph_path = os.path.join(BASE_DIR, "core", "graph.py")
+def update_map_data():
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    map_data_path = os.path.join(base_dir, "core", "map_data.py")
+    
+    # Định nghĩa nội dung dữ liệu bản đồ mới sạch sẽ, thẳng hàng
+    new_content = """# Dữ liệu bản đồ tối ưu hóa hệ thống lưới 1250x900
+NODES_DATA = {
+    'N1': (45, 200), 'N2': (111, 200), 'N3': (111, 322), 'N5': (363, 630), 'N6': (3, 630),
+    'N7': (391, 319), 'N8': (391, 129), 'N9': (499, 129), 'N10': (499, 0), 'N12': (916, 322),
+    'N13': (1122, 322), 'N14': (363, 322), 'N15': (111, 630), 'N16': (916, 630), 'N17': (45, 220),
+    'N20': (1122, 299), 'N21': (91, 306), 'N22': (391, 630), 'N23': (391, 368), 'N24': (468, 0),
+    'N25': (468, 110), 'N26': (916, 110), 'N27': (916, 0), 'N31': (886, 0), 'N32': (886, 630),
+    'N33': (886, 651), 'N35': (3, 651), 'N37': (91, 777), 'N38': (223, 862), 'N39': (640, 862),
+    'N41': (1015, 862), 'N42': (1015, 651), 'N43': (982, 630), 'N44': (886, 847), 'N45': (1247, 630),
+    'N46': (1141, 630), 'N47': (1108, 651), 'N48': (1108, 759), 'N49': (1015, 759), 'N50': (1141, 651),
+    'N51': (1141, 752), 'N54': (1015, 781), 'N55': (1122, 774), 'N56': (1074, 781), 'N57': (1247, 651),
+    'N58': (982, 651), 'N59': (982, 847), 'N60': (640, 651), 'N61': (640, 847), 'N62': (916, 847),
+    'N63': (916, 651), 'N64': (111, 651), 'N65': (886, 322), 'N66': (916, 299), 'N67': (916, 128),
+    'N68': (886, 110), 'N69': (91, 220), 'N70': (111, 299), 'N71': (886, 299), 'N72': (608, 862),
+    'N73': (608, 651), 'N74': (640, 630), 'N75': (111, 770), 'N76': (223, 847), 'N77': (608, 847),
+    'N78': (608, 740), 'N79': (608, 899), 'N80': (640, 899), 'N81': (982, 899), 'N82': (1015, 899),
+    'N83': (223, 299), 'N84': (640, 541), 'N85': (740, 541), 'N86': (740, 487), 'N87': (916, 487),
+    'N88': (886, 474), 'N89': (719, 474), 'N90': (719, 530), 'N91': (608, 530), 'N92': (363, 651),
+    'N93': (391, 299), 'N94': (608, 630), 'N95': (91, 651), 'N28': (363, 110), 'N29': (363, 299)
+}
 
-print("=== ĐANG KHÔI PHỤC VÀ CHUẨN HÓA TOÀN BỘ FILE CORE/GRAPH.PY ===")
-
-graph_clean_content = """import math
-
-class Edge:
-    def __init__(self, target_id, distance, traffic_factor=0.0):
-        self.target_id = target_id
-        self.distance = distance
-        self.traffic_factor = traffic_factor
-
-    def get_weight(self):
-        if self.traffic_factor == float('inf'): return float('inf')
-        return self.distance * (1 + self.traffic_factor)
-
-class Node:
-    def __init__(self, node_id, x, y, label=None):
-        self.node_id = node_id
-        self.x = x
-        self.y = y
-        self.label = label
-        self.edges = []
-        self.has_light = False
-        self.light_state = 'NONE'
-        self.light_duration = 0
-        self.yellow_duration = 60
-        self.light_timer = 0
-        self.csp_locked = False
-
-    def add_edge(self, target_id, distance, traffic_factor=0.0):
-        self.edges.append(Edge(target_id, distance, traffic_factor))
-
-class Graph:
-    def __init__(self):
-        self.nodes = {}
-
-    def add_node(self, node_id, x, y, label=None):
-        self.nodes[node_id] = Node(node_id, x, y, label)
-
-    def add_bidirectional_edge(self, id1, id2, traffic_factor=0.0):
-        if id1 in self.nodes and id2 in self.nodes:
-            n1, n2 = self.nodes[id1], self.nodes[id2]
-            dist = math.hypot(n1.x - n2.x, n1.y - n2.y)
-            n1.add_edge(id2, dist, traffic_factor)
-            n2.add_edge(id1, dist, traffic_factor)
-
-    def add_directional_edge(self, from_id, to_id, traffic_factor=0.0):
-        if from_id in self.nodes and to_id in self.nodes:
-            n1, n2 = self.nodes[from_id], self.nodes[to_id]
-            dist = math.hypot(n1.x - n2.x, n1.y - n2.y)
-            n1.add_edge(to_id, dist, traffic_factor)
-
-    def get_edge(self, id1, id2):
-        if id1 in self.nodes:
-            for edge in self.nodes[id1].edges:
-                if edge.target_id == id2:
-                    return edge
-        return None
+EDGES_DATA = [
+    ('N7', 'N8'), ('N8', 'N9'), ('N9', 'N10'), ('N3', 'N14'), ('N15', 'N6'), ('N5', 'N15'), 
+    ('N22', 'N23'), ('N23', 'N7'), ('N24', 'N25'), ('N26', 'N27'), ('N14', 'N7'), ('N12', 'N13'), 
+    ('N32', 'N33'), ('N37', 'N38'), ('N38', 'N39'), ('N39', 'N41'), ('N42', 'N43'), ('N33', 'N44'), 
+    ('N45', 'N46'), ('N48', 'N49'), ('N49', 'N42'), ('N41', 'N82'), ('N82', 'N49'), ('N82', 'N56'), 
+    ('N56', 'N55'), ('N55', 'N51'), ('N51', 'N50'), ('N50', 'N57'), ('N47', 'N48'), ('N46', 'N47'), 
+    ('N46', 'N43'), ('N43', 'N16'), ('N58', 'N59'), ('N59', 'N44'), ('N39', 'N61'), ('N44', 'N61'), 
+    ('N61', 'N60'), ('N60', 'N33'), ('N33', 'N63'), ('N59', 'N62'), ('N62', 'N63'), ('N63', 'N58'), 
+    ('N58', 'N50'), ('N32', 'N63'), ('N16', 'N33'), ('N64', 'N15'), ('N66', 'N67'), ('N26', 'N67'), 
+    ('N9', 'N67'), ('N67', 'N26'), ('N14', 'N65'), ('N65', 'N13'), ('N31', 'N68'), ('N28', 'N29'), 
+    ('N29', 'N14'), ('N15', 'N3'), ('N2', 'N1'), ('N17', 'N69'), ('N69', 'N21'), ('N25', 'N28'), 
+    ('N3', 'N70'), ('N70', 'N2'), ('N66', 'N71'), ('N68', 'N71'), ('N68', 'N25'), ('N65', 'N12'), 
+    ('N73', 'N60'), ('N60', 'N74'), ('N32', 'N74'), ('N22', 'N5'), ('N75', 'N64'), ('N76', 'N75'), 
+    ('N77', 'N72'), ('N61', 'N77'), ('N77', 'N76'), ('N72', 'N79'), ('N80', 'N39'), ('N72', 'N61'), 
+    ('N73', 'N78'), ('N78', 'N77'), ('N39', 'N77'), ('N59', 'N81'), ('N74', 'N84'), ('N84', 'N85'), 
+    ('N85', 'N86'), ('N86', 'N87'), ('N16', 'N87'), ('N87', 'N12'), ('N88', 'N89'), ('N89', 'N90'), 
+    ('N90', 'N91'), ('N65', 'N88'), ('N88', 'N32'), ('N7', 'N29'), ('N29', 'N83'), ('N83', 'N70'), 
+    ('N14', 'N5'), ('N1', 'N17'), ('N10', 'N24'), ('N6', 'N35'), ('N13', 'N20'), ('N27', 'N31'), 
+    ('N57', 'N45'), ('N79', 'N80'), ('N81', 'N82'), ('N92', 'N5'), ('N92', 'N73'), ('N93', 'N14'), 
+    ('N71', 'N93'), ('N93', 'N29'), ('N74', 'N94'), ('N73', 'N94'), ('N63', 'N16'), ('N42', 'N47'), 
+    ('N71', 'N65'), ('N12', 'N66'), ('N21', 'N3'), ('N95', 'N64'), ('N95', 'N37'), ('N21', 'N95'), 
+    ('N94', 'N22'), ('N91', 'N94'), ('N20', 'N66'), ('N65', 'N66'), ('N71', 'N12'), ('N73', 'N74'), 
+    ('N60', 'N94'), ('N95', 'N15'), ('N64', 'N92'), ('N35', 'N95'), ('N43', 'N58')
+]
 """
+    if os.path.exists(map_data_path):
+        with open(map_data_path, "w", encoding="utf-8") as f:
+            f.write(new_content.strip() + "\\n")
+        print("[✓] Đã cập nhật thành công bộ dữ liệu liên thông trục thẳng vào core/map_data.py!")
+    else:
+        print("[!] Không tìm thấy file core/map_data.py. Vui lòng chạy script từ thư mục gốc backend.")
 
-with open(graph_path, "w", encoding="utf-8") as f:
-    f.write(graph_clean_content.strip() + "\\n")
-
-print("[THÀNH CÔNG] Đã làm sạch mã nguồn tệp core/graph.py.")
-print("Bây giờ bạn hãy chạy lại hệ thống bằng lệnh: python main.py")
+if __name__ == "__main__":
+    update_map_data()

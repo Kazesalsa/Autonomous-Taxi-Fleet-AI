@@ -46,17 +46,10 @@ class MockContext:
 # --- ĐÓNG GÓI WRAPPER CHUẨN HÓA LỘ TRÌNH ĐỂ TRẢ VỀ DANH SÁCH NODE ID [Start, ..., Goal] ---
 
 def generate_fallback_path(graph, start, goal):
-    """Hàm bổ trợ sinh đường đi cơ bản nếu thuật toán đặc thù không trả về tuyến tính"""
     if start == goal: return [start]
-    # Thử tìm một lộ trình kết nối trực tiếp hoặc giả lập lộ trình thông qua đồ thị
-    try:
-        from algorithms.informed import run_a_star
-        res = run_a_star(MockContext(graph, start, goal))
-        if res and getattr(res, 'path', None):
-            return res.path
-    except Exception:
-        pass
-    return [start, goal] if start in graph.nodes and goal in graph.nodes else [start]
+    # NẾU LỖI, BẮT BUỘC TRẢ VỀ [start] ĐỂ XE ĐỨNG IM BÁO LỖI
+    print(f"LỖI TÌM ĐƯỜNG: Thuật toán không thể vẽ đường từ {start} đến {goal}!")
+    return [start]
 
 def uninformed_wrapper(func, graph, start, goal):
     res = func(MockContext(graph, start, goal))

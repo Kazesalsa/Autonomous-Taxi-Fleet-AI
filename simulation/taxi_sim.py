@@ -69,7 +69,7 @@ def run_simulation():
     renderer = Renderer(screen, font, bold_font, title_font)
     dashboard = Dashboard()
     
-    vehicles = [create_random_civilian(graph) for _ in range(10)]
+    vehicles = [create_random_civilian(graph) for _ in range(0)]
     customers = []
     is_paused = False
     broken_edges = {} 
@@ -133,11 +133,21 @@ def run_simulation():
                         v = spawn_taxi(group_id, algo, graph, vehicles, Vehicle)
                         
                         unassigned_customer = None
+                        min_distance = float('inf')
+                        
+                        # Lấy tọa độ xe hiện tại
+                        v_node = graph.nodes.get(v.current_node_id)
+                        
                         for cust in customers:
                             is_assigned = any(getattr(x, 'customer_goal', None) == cust['goal'] for x in vehicles if x.v_id.startswith('TX_'))
                             if not is_assigned:
-                                unassigned_customer = cust
-                                break
+                                cust_node = graph.nodes.get(cust['start'])
+                                if v_node and cust_node:
+                                    # Tính khoảng cách Euclidean giữa xe và điểm đón của khách
+                                    dist = math.hypot(cust_node.x - v_node.x, cust_node.y - v_node.y)
+                                    if dist < min_distance:
+                                        min_distance = dist
+                                        unassigned_customer = cust
                         
                         if unassigned_customer:
                             cust_start, cust_goal = unassigned_customer['start'], unassigned_customer['goal']
