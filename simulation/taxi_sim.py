@@ -147,6 +147,8 @@ def run_simulation():
                         dashboard.add_log(f"Đã tạo {v.v_id} ({algo}) tại {n_id}")
                         pending_spawn_algo = None
                         pending_spawn_group = None
+                        dashboard.active_group = None
+                        dashboard._sync_state()
                         continue
 
                 if isinstance(click_result, tuple) and click_result[0] == "NODE" and not pending_spawn_algo:
