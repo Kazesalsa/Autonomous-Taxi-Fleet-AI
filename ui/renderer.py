@@ -9,8 +9,24 @@ class Renderer:
         self.bold_font = bold_font
         self.title_font = title_font
 
-    def draw_graph(self, graph, broken_edges, customers, reachable_edges, show_fog):
-        """Vẽ các hòn đá vật cản và khách hàng kèm hiệu ứng thu phóng lên bản đồ"""
+    def draw_graph(self, graph, broken_edges, customers, reachable_edges, show_fog, pending_spawn_nodes=None, focused_vehicle=None, traffic_light_colors=None):
+        """Vẽ các hòn đá vật cản, khách hàng kèm hiệu ứng thu phóng và hệ thống đèn giao thông lên bản đồ"""
+        
+        # --- VẼ ĐƯỜNG LỘ TRÌNH CHO XE ĐƯỢC CHỌN (FOCUS) ---
+        if focused_vehicle:
+            path_pts = [(focused_vehicle.x, focused_vehicle.y)]
+            if focused_vehicle.target_node_id in graph.nodes:
+                n = graph.nodes[focused_vehicle.target_node_id]
+                path_pts.append((n.x, n.y))
+            for n_id in focused_vehicle.path:
+                if n_id in graph.nodes:
+                    n = graph.nodes[n_id]
+                    path_pts.append((n.x, n.y))
+            
+            if len(path_pts) > 1:
+                pygame.draw.lines(self.screen, (241, 196, 15), False, path_pts, 4) 
+                pygame.draw.circle(self.screen, (241, 196, 15), (int(path_pts[-1][0]), int(path_pts[-1][1])), 8) 
+
         # --- LÝ TRÌNH VẼ VẬT CẢN HÒN ĐÁ 3D ---
         for obs_id, obs in broken_edges.items():
             bx, by = int(obs['pos'][0]), int(obs['pos'][1])
@@ -33,37 +49,117 @@ class Renderer:
 
         # --- LÝ TRÌNH VẼ KHÁCH HÀNG CHẤM TRÒN THU PHÓNG ---
         current_time = pygame.time.get_ticks()
-        # Tạo hiệu ứng xung số từ 0.0 đến 1.0 thay đổi liên tục theo thời gian
         pulse_factor = (math.sin(current_time * 0.007) + 1.0) / 2.0  
+        outer_radius = int(8 + pulse_factor * 8)
         
         for cust in customers:
-            if cust['start'] in graph.nodes:
+            lbl_text = cust.get('label', '')
+            is_patient = cust.get('is_patient', False)
+            
+            # VẼ ĐIỂM ĐÓN (CHỮ A) - CHỈ VẼ NẾU CHƯA ĐƯỢC ĐÓN
+            if not cust.get('picked_up', False) and cust['start'] in graph.nodes:
                 node = graph.nodes[cust['start']]
                 cx, cy = node.x, node.y
+
+
                 
-                # Bán kính vòng tròn hiệu ứng bên ngoài co giãn từ 8 đến 16 pixel
-                outer_radius = int(8 + pulse_factor * 8)
+                if not cust.get('agree_to_share', True):
+                    glow_color = (241, 196, 15, 80) 
+                    core_color = (241, 196, 15) 
+                elif is_patient:
+                    glow_color = (155, 89, 182, 80) # Purple for patient
+                    core_color = (155, 89, 182)
+                else:
+                    glow_color = (46, 204, 113, 80) 
+                    core_color = (46, 204, 113) 
                 
-                # Vẽ vòng tròn mờ lan tỏa phía dưới (Hiệu ứng sóng radar)
                 glow_surf = pygame.Surface((outer_radius * 2, outer_radius * 2), pygame.SRCALPHA)
-                pygame.draw.circle(glow_surf, (46, 204, 113, 80), (outer_radius, outer_radius), outer_radius)
+                pygame.draw.circle(glow_surf, glow_color, (outer_radius, outer_radius), outer_radius)
                 self.screen.blit(glow_surf, (cx - outer_radius, cy - outer_radius))
                 
-                # Vẽ chấm tròn lõi cứng định vị ở tâm màu xanh lục sáng
-                pygame.draw.circle(self.screen, (46, 204, 113), (cx, cy), 6)
-                pygame.draw.circle(self.screen, (255, 255, 255), (cx, cy), 6, 1) # Viền trắng mảnh
+                pygame.draw.circle(self.screen, core_color, (cx, cy), 8)
+                pygame.draw.circle(self.screen, (255, 255, 255), (cx, cy), 8, 1)
+                
+                lbl_render = self.bold_font.render(lbl_text, True, (0, 0, 0))
+                self.screen.blit(lbl_render, (cx - lbl_render.get_width()/2, cy - lbl_render.get_height()/2))
+
+            # VẼ ĐIỂM TRẢ CHO KHÁCH (BỆNH NHÂN KHÔNG CẦN ĐIỂM TRẢ VÌ ĐÃ CÓ ĐIỂM ĐÓN)
+            if not is_patient and not cust.get('delivered', False) and cust['goal'] in graph.nodes:
+                node = graph.nodes[cust['goal']]
+                cx, cy = node.x, node.y
+
+
+                
+                glow_surf = pygame.Surface((outer_radius * 2, outer_radius * 2), pygame.SRCALPHA)
+                pygame.draw.circle(glow_surf, (231, 76, 60, 80), (outer_radius, outer_radius), outer_radius)
+                self.screen.blit(glow_surf, (cx - outer_radius, cy - outer_radius))
+                
+                pygame.draw.circle(self.screen, (231, 76, 60), (cx, cy), 8)
+                pygame.draw.circle(self.screen, (255, 255, 255), (cx, cy), 8, 1)
+                lbl_render_red = self.bold_font.render(lbl_text, True, (255, 255, 255))
+                self.screen.blit(lbl_render_red, (cx - lbl_render_red.get_width()/2, cy - lbl_render_red.get_height()/2))
+
+        # VẼ HIỆU ỨNG NHẤP NHÁY CHỌN ĐIỂM XUẤT PHÁT TẠI EDGE_NODES
+        if pending_spawn_nodes:
+            for n_id in pending_spawn_nodes:
+                if n_id in graph.nodes:
+                    node = graph.nodes[n_id]
+                    cx, cy = node.x, node.y
+                    glow_surf = pygame.Surface((outer_radius * 2, outer_radius * 2), pygame.SRCALPHA)
+                    pygame.draw.circle(glow_surf, (52, 152, 219, 120), (outer_radius, outer_radius), outer_radius)
+                    self.screen.blit(glow_surf, (cx - outer_radius, cy - outer_radius))
+                    pygame.draw.circle(self.screen, (52, 152, 219), (cx, cy), 8)
+
+        # --- VẼ 18 HỘP ĐÈN GIAO THÔNG VẬT LÝ ---
+        if traffic_light_colors:
+            for sp_id, data in traffic_light_colors.items():
+                px, py = data['pos']
+                color = data['color']
+                
+                pygame.draw.rect(self.screen, (30, 30, 30), (px - 6, py - 14, 12, 28), border_radius=3)
+                pygame.draw.rect(self.screen, (100, 100, 100), (px - 6, py - 14, 12, 28), 1, border_radius=3)
+                
+                pygame.draw.circle(self.screen, (60, 20, 20), (px, py - 8), 3) 
+                pygame.draw.circle(self.screen, (60, 60, 20), (px, py), 3)     
+                pygame.draw.circle(self.screen, (20, 60, 20), (px, py + 8), 3) 
+                
+                if color == (231, 76, 60): 
+                    pygame.draw.circle(self.screen, color, (px, py - 8), 4)
+                    glow = pygame.Surface((16, 16), pygame.SRCALPHA)
+                    pygame.draw.circle(glow, (231, 76, 60, 100), (8, 8), 8)
+                    self.screen.blit(glow, (px - 8, py - 16))
+                elif color == (241, 196, 15): 
+                    pygame.draw.circle(self.screen, color, (px, py), 4)
+                    glow = pygame.Surface((16, 16), pygame.SRCALPHA)
+                    pygame.draw.circle(glow, (241, 196, 15, 100), (8, 8), 8)
+                    self.screen.blit(glow, (px - 8, py - 8))
+                elif color == (46, 204, 113): 
+                    pygame.draw.circle(self.screen, color, (px, py + 8), 4)
+                    glow = pygame.Surface((16, 16), pygame.SRCALPHA)
+                    pygame.draw.circle(glow, (46, 204, 113, 100), (8, 8), 8)
+                    self.screen.blit(glow, (px - 8, py))
 
     def draw_vehicles(self, vehicles, graph, focused_v, show_fog, reachable_nodes):
+        """Vẽ các phương tiện di chuyển trên bản đồ"""
         for v in vehicles:
             if v.state == "IDLE_IN_DEPOT": continue
-            if not v.target_node_id and v.state != "STUCK_AT_OBSTACLE": continue
+            is_tx = v.v_id.startswith('TX_')
+            is_amb = getattr(v, 'is_ambulance', False)
+            if is_amb or is_tx:
+                pass # Always draw Taxis and Ambulances unless IDLE_IN_DEPOT
+            elif not v.target_node_id and v.state != "STUCK_AT_OBSTACLE": continue
             if show_fog and (v.current_edge_start_id not in reachable_nodes) and (v.target_node_id not in reachable_nodes): continue
             
             vx, vy, angle = v.x, v.y, v.angle
+
+
             is_tx = v.v_id.startswith('TX_')
-            L, W = (32, 16) if is_tx else (22, 11)
+            is_amb = getattr(v, 'is_ambulance', False)
             
-            # Gán màu nguyên bản của xe, loại bỏ hoàn toàn logic đổi màu trắng khi nhấp chọn xe (focus)
+            if is_amb: L, W = (36, 18)
+            elif is_tx: L, W = (32, 16)
+            else: L, W = (22, 11)
+            
             if is_tx: body_c = (245, 185, 15)
             elif hasattr(v, 'color'): body_c = v.color
             else: body_c = (189, 195, 199)
@@ -95,6 +191,13 @@ class Renderer:
             pygame.draw.circle(self.screen, (255, 50, 50), (int(get_pt(-L/2, W/2 - 2)[0]), int(get_pt(-L/2, W/2 - 2)[1])), 2)
             pygame.draw.circle(self.screen, (255, 50, 50), (int(get_pt(-L/2, -W/2 + 2)[0]), int(get_pt(-L/2, -W/2 + 2)[1])), 2)
             
+            if getattr(v, 'is_ambulance', False):
+                # Draw a red cross on the roof
+                c_x, c_y = get_pt(0, 0)
+                cross_len = L/6
+                pygame.draw.line(self.screen, (231, 76, 60), get_pt(cross_len, 0), get_pt(-cross_len, 0), 2)
+                pygame.draw.line(self.screen, (231, 76, 60), get_pt(0, cross_len), get_pt(0, -cross_len), 2)
+            
             if is_tx:
                 pygame.draw.rect(self.screen, (20, 20, 20), (vx - 4, vy - 2.5, 8, 5))
                 pygame.draw.rect(self.screen, (245, 185, 15), (vx - 3, vy - 1.5, 6, 3))
@@ -104,10 +207,10 @@ class Renderer:
                 
                 lbl = self.bold_font.render(display_id, True, (241, 196, 15))
                 self.screen.blit(lbl, (vx - lbl.get_width() / 2, vy - 28))
-            
-            # ĐÃ XÓA logic vẽ các chuỗi text trạng thái phụ ("DỪNG", "BỊ CHẶN") trên đầu xe
+
 
     def draw_dashboard(self, log_messages, ui_rects, is_paused, select_mode, show_fog):
+        """Vẽ bảng điều khiển Dashboard bên tay phải"""
         pygame.draw.rect(self.screen, COLOR_DASHBOARD, (MAP_WIDTH, 0, DASHBOARD_WIDTH, HEIGHT))
         pygame.draw.line(self.screen, (70, 70, 80), (MAP_WIDTH, 0), (MAP_WIDTH, HEIGHT), 4)
 
@@ -121,7 +224,18 @@ class Renderer:
 
         # Hàng 1
         self._draw_btn(ui_rects['start'], "Bắt đầu", (46, 204, 113))
-        self._draw_btn(ui_rects['stop'], "Dừng", (231, 76, 60))
+        
+        # Vẽ nút Tạo (Create) 
+        create_rect = ui_rects['create']
+        pygame.draw.rect(self.screen, (231, 76, 60), create_rect, border_radius=6)
+        pygame.draw.rect(self.screen, (255, 255, 255), create_rect, width=2, border_radius=6)
+        
+        txt_create = self.bold_font.render("Tạo", True, (255, 255, 255))
+        self.screen.blit(txt_create, (create_rect.centerx - txt_create.get_width() / 2, create_rect.y + 4))
+        
+        create_mode = sync_data.get('create_mode', "Khách")
+        txt_mode = self.font.render(create_mode, True, (255, 255, 200))
+        self.screen.blit(txt_mode, (create_rect.centerx - txt_mode.get_width() / 2, create_rect.y + 22))
 
         # Hàng 2: Reset & Vật cản
         if 'reset' in ui_rects:
@@ -131,45 +245,45 @@ class Renderer:
             self._draw_btn(ui_rects['obstacle'], "Vật cản", obs_btn_color)
 
         # Hàng 3: Kịch bản MAP dọc
-        for i in range(1, 4):
-            color = (52, 152, 219) if active_map == i else (50, 50, 50)
-            self._draw_btn(ui_rects[f'map{i}'], f"Kịch bản MAP {i}", color)
+        for i in range(1, 3):
+            if f'map{i}' in ui_rects:
+                color = (52, 152, 219) if active_map == i else (50, 50, 50)
+                self._draw_btn(ui_rects[f'map{i}'], f"Kịch bản {i}", color)
 
-        # Hàng 4: 6 nhóm thuật toán Panel Panel
-        for i in range(1, 7):
+        # Hàng 4: 5 nhóm thuật toán Panel
+        for i in range(1, 6):
             color = (241, 196, 15) if active_group == i else (60, 60, 60)
             algo_name = algos[i][group_idx[i]]
             self._draw_btn(ui_rects[f'grp{i}'], f"N{i}: {algo_name}", color, use_small=True)
 
-        # BẢNG SO SÁNH HIỆU NĂNG REAL-TIME (Tọa độ Y được căn xuống 385 tránh va chạm đè chữ)
-        self.screen.blit(self.title_font.render("SO SÁNH HIỆU NĂNG", True, (241, 196, 15)), (MAP_WIDTH + 20, 385))
+        # BẢNG SO SÁNH HIỆU NĂNG REAL-TIME
+        self.screen.blit(self.title_font.render("SO SÁNH HIỆU NĂNG", True, (241, 196, 15)), (MAP_WIDTH + 15, 385))
         
         # Tiêu đề cột
-        self.screen.blit(self.bold_font.render("Thuật toán", True, (200, 200, 200)), (MAP_WIDTH + 20, 420))
-        self.screen.blit(self.bold_font.render("Quãng đường", True, (200, 200, 200)), (MAP_WIDTH + 115, 420))
-        self.screen.blit(self.bold_font.render("Doanh thu", True, (200, 200, 200)), (MAP_WIDTH + 210, 420))
+        self.screen.blit(self.bold_font.render("Thuật toán", True, (200, 200, 200)), (MAP_WIDTH + 15, 420))
+        self.screen.blit(self.bold_font.render("Khách", True, (200, 200, 200)), (MAP_WIDTH + 105, 420))
+        self.screen.blit(self.bold_font.render("Chi phí", True, (200, 200, 200)), (MAP_WIDTH + 160, 420))
+        self.screen.blit(self.bold_font.render("Doanh thu", True, (200, 200, 200)), (MAP_WIDTH + 230, 420))
         
         # Đường gạch chân tiêu đề
-        pygame.draw.line(self.screen, (100, 100, 110), (MAP_WIDTH + 20, 440), (MAP_WIDTH + DASHBOARD_WIDTH - 20, 440), 1)
+        pygame.draw.line(self.screen, (100, 100, 110), (MAP_WIDTH + 15, 440), (MAP_WIDTH + DASHBOARD_WIDTH - 15, 440), 1)
 
         leaderboard = metrics.get('taxi_leaderboard', {})
         y_row = 450
         
         for name, data in leaderboard.items():
-            # Cột 1: Tên thuật toán định dạng (Ví dụ: BFS_1)
-            self.screen.blit(self.font.render(name, True, (255, 255, 255)), (MAP_WIDTH + 20, y_row))
-            # Cột 2: Quãng đường thực xe chạy tích lũy từ vị trí (px)
-            self.screen.blit(self.font.render(f"{data['distance']} px", True, (255, 255, 255)), (MAP_WIDTH + 115, y_row))
-            # Cột 3: Doanh thu thực tế của xe
-            self.screen.blit(self.font.render(f"{data['revenue']:,}đ", True, (46, 204, 113)), (MAP_WIDTH + 210, y_row))
+            self.screen.blit(self.font.render(name, True, (255, 255, 255)), (MAP_WIDTH + 15, y_row))
+            self.screen.blit(self.font.render(data.get('customers', '-'), True, (241, 196, 15)), (MAP_WIDTH + 105, y_row))
+            self.screen.blit(self.font.render(f"{data['cost']:,}đ", True, (231, 76, 60)), (MAP_WIDTH + 160, y_row))
+            self.screen.blit(self.font.render(f"{data['revenue']:,}đ", True, (46, 204, 113)), (MAP_WIDTH + 230, y_row))
             
             y_row += 24
 
     def _draw_btn(self, rect, text, color, use_small=False):
         pygame.draw.rect(self.screen, color, rect, border_radius=6)
-        pygame.draw.rect(self.screen, (255,255,255), rect, width=2, border_radius=6)
+        pygame.draw.rect(self.screen, (255, 255, 255), rect, width=2, border_radius=6)
         fnt = self.font if use_small else self.bold_font
-        txt = fnt.render(text, True, (0, 0, 0) if color[0] > 200 or color == (46, 204, 113) else (255,255,255))
+        txt = fnt.render(text, True, (0, 0, 0) if color[0] > 200 or color == (46, 204, 113) else (255, 255, 255))
         self.screen.blit(txt, (rect.centerx - txt.get_width() / 2, rect.centery - txt.get_height() / 2))
 
     def draw_focused_vehicle_ui(self, vehicle):

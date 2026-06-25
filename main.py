@@ -10,4 +10,3 @@ if __name__ == "__main__":
     pygame.init()
     run_simulation()
     pygame.quit()
-    sys.exit()  

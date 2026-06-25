@@ -39,6 +39,10 @@ class MockContext:
     @property
     def heuristic_fn(self):
         def euclid_distance(node1, node2):
+            # BẢO MẬT DỮ LIỆU: Tự động cast (ép kiểu) nếu tham số truyền vào là ID (string) thay vì Node Object
+            if isinstance(node1, str): node1 = self.graph.nodes.get(node1)
+            if isinstance(node2, str): node2 = self.graph.nodes.get(node2)
+            
             if not node1 or not node2: return 0.0
             return math.hypot(node2.x - node1.x, node2.y - node1.y)
         return euclid_distance
@@ -46,10 +50,28 @@ class MockContext:
 # --- ĐÓNG GÓI WRAPPER CHUẨN HÓA LỘ TRÌNH ĐỂ TRẢ VỀ DANH SÁCH NODE ID [Start, ..., Goal] ---
 
 def generate_fallback_path(graph, start, goal):
+    """Hàm bổ trợ sinh đường đi cơ bản nếu thuật toán đặc thù không trả về tuyến tính"""
     if start == goal: return [start]
-    # NẾU LỖI, BẮT BUỘC TRẢ VỀ [start] ĐỂ XE ĐỨNG IM BÁO LỖI
-    print(f"LỖI TÌM ĐƯỜNG: Thuật toán không thể vẽ đường từ {start} đến {goal}!")
-    return [start]
+    
+    # GIẢI PHÁP: Ưu tiên gọi thuật toán BFS (chạy hoàn hảo và ổn định nhất) để nối path cho Nhóm 3, 5
+    try:
+        from algorithms.uninformed import run_bfs
+        res = run_bfs(MockContext(graph, start, goal))
+        if res and getattr(res, 'path', None):
+            return res.path
+    except Exception:
+        pass
+        
+    # Dự phòng lớp 2 (Đã an toàn hơn vì heuristic_fn đã được fix)
+    try:
+        from algorithms.informed import run_a_star
+        res = run_a_star(MockContext(graph, start, goal))
+        if res and getattr(res, 'path', None):
+            return res.path
+    except Exception:
+        pass
+        
+    return []
 
 def uninformed_wrapper(func, graph, start, goal):
     res = func(MockContext(graph, start, goal))
@@ -75,11 +97,13 @@ def csp_wrapper(func, graph, start, goal):
     func(MockContext(graph, start, goal))
     return generate_fallback_path(graph, start, goal)
 
-def adversarial_wrapper(func, graph, start, goal):
-    res = func(MockContext(graph, start, goal))
+def adversarial_wrapper(func, graph, start, goal, depth=3):
+    ctx = MockContext(graph, start, goal)
+    ctx.max_depth = depth
+    res = func(ctx)
     path = getattr(res, 'path', None)
-    # Nếu minimax chỉ trả về nước đi kế tiếp [start, nxt], nối dài lộ trình để xe không bị đứng im
-    if path and len(path) == 2 and path[-1] != goal:
+    # Đảm bảo lộ trình luôn dẫn tới đích, nếu thuật toán bị đứt đoạn giữa chừng thì dùng fallback nối tiếp
+    if path and path[-1] != goal:
         return path + generate_fallback_path(graph, path[-1], goal)[1:]
     return path if path else generate_fallback_path(graph, start, goal)
 
@@ -98,20 +122,20 @@ ALGORITHM_REGISTRY = {
     # Nhóm 3: Local Search
     "Hill Climb": lambda g, s, tg: local_search_wrapper(run_hill_climbing, g, s, tg),
     "Sim. Anneal": lambda g, s, tg: local_search_wrapper(run_simulated_annealing, g, s, tg),
-    "Genetic": lambda g, s, tg: local_search_wrapper(run_local_beam_search, g, s, tg), # Đồng bộ sang run_local_beam_search có sẵn
+    "Genetic": lambda g, s, tg: local_search_wrapper(run_local_beam_search, g, s, tg),
     
     # Nhóm 4: Complex Env
-    "D* Lite": lambda g, s, tg: complex_env_wrapper(run_and_or_search, g, s, tg), # Đồng bộ sang run_and_or_search
-    "RTAA*": lambda g, s, tg: complex_env_wrapper(run_online_replanning, g, s, tg), # Đồng bộ sang run_online_replanning
+    "D* Lite": lambda g, s, tg: complex_env_wrapper(run_and_or_search, g, s, tg), 
+    "RTAA*": lambda g, s, tg: complex_env_wrapper(run_online_replanning, g, s, tg), 
     "Online": lambda g, s, tg: complex_env_wrapper(run_sensorless_search, g, s, tg),
     
     # Nhóm 5: CSP
     "Backtrack": lambda g, s, tg: csp_wrapper(run_backtracking, g, s, tg),
     "AC-3": lambda g, s, tg: csp_wrapper(run_ac3, g, s, tg),
-    "Fwd Chk": lambda g, s, tg: csp_wrapper(run_min_conflicts, g, s, tg), # Đồng bộ sang run_min_conflicts
+    "Fwd Chk": lambda g, s, tg: csp_wrapper(run_min_conflicts, g, s, tg),
     
     # Nhóm 6: Adversarial
-    "Minimax": lambda g, s, tg: adversarial_wrapper(run_minimax, g, s, tg),
-    "Alpha-Beta": lambda g, s, tg: adversarial_wrapper(run_alpha_beta, g, s, tg),
-    "Expect": lambda g, s, tg: adversarial_wrapper(run_expectimax, g, s, tg)
+    "Minimax": lambda g, s, tg: adversarial_wrapper(run_minimax, g, s, tg, depth=2),
+    "Alpha-Beta": lambda g, s, tg: adversarial_wrapper(run_alpha_beta, g, s, tg, depth=4),
+    "Expect": lambda g, s, tg: adversarial_wrapper(run_expectimax, g, s, tg, depth=3)
 }

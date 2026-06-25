@@ -8,15 +8,15 @@ class Dashboard:
         self.metrics = {"distance": 0, "revenue": 0, "status_msg": "", "status_color": (255, 255, 255)}
         self.active_map = 1
         self.active_group = None
-        self.group_idx = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0}
-        self.last_click_time = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0}
+        self.create_mode = "Khách"
+        self.group_idx = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
+        self.last_click_time = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
         self.algos = {
             1: ["BFS", "DFS", "UCS"],
             2: ["A*", "GBFS", "W-A*"],
             3: ["Hill Climb", "Sim. Anneal", "Genetic"],
             4: ["D* Lite", "RTAA*", "Online"],
-            5: ["Backtrack", "AC-3", "Fwd Chk"],
-            6: ["Minimax", "Alpha-Beta", "Expect"]
+            5: ["Minimax", "Alpha-Beta", "Expect"]
         }
         
         cw = (DASHBOARD_WIDTH - 50) // 2
@@ -26,9 +26,9 @@ class Dashboard:
         self.ui_rects = {
             'pause': pygame.Rect(MAP_WIDTH + 20, 550, DASHBOARD_WIDTH - 40, 40),
             
-            # Hàng 1: Bắt đầu & Dừng (Y = 20)
+            # Hàng 1: Bắt đầu & Tạo (Y = 20)
             'start': pygame.Rect(c1, 20, cw, 35),
-            'stop': pygame.Rect(c2, 20, cw, 35),
+            'create': pygame.Rect(c2, 20, cw, 45), # Tăng chiều cao một chút để hiển thị 2 dòng
             
             # Hàng 2: Reset & Vật cản (Y = 65)
             'reset': pygame.Rect(c1, 65, cw, 35),
@@ -37,7 +37,6 @@ class Dashboard:
             # Hàng 3: Kịch bản MAP (Xếp dọc tránh đè chữ)
             'map1': pygame.Rect(MAP_WIDTH + 20, 115, DASHBOARD_WIDTH - 40, 35),
             'map2': pygame.Rect(MAP_WIDTH + 20, 155, DASHBOARD_WIDTH - 40, 35),
-            'map3': pygame.Rect(MAP_WIDTH + 20, 195, DASHBOARD_WIDTH - 40, 35),
             
             # Hàng 4: Các nhóm thuật toán (Chiều cao thu nhỏ về 32px để tiết kiệm không gian)
             'grp1': pygame.Rect(c1, 245, cw, 32),
@@ -45,7 +44,6 @@ class Dashboard:
             'grp3': pygame.Rect(c1, 285, cw, 32),
             'grp4': pygame.Rect(c2, 285, cw, 32),
             'grp5': pygame.Rect(c1, 325, cw, 32),
-            'grp6': pygame.Rect(c2, 325, cw, 32),
             '_state_sync': {}
         }
         self._sync_state()
@@ -67,7 +65,8 @@ class Dashboard:
             'group_idx': self.group_idx,
             'algos': self.algos,
             'metrics': self.metrics,
-            'obstacle_mode': False
+            'obstacle_mode': False,
+            'create_mode': self.create_mode
         }
 
     def handle_click(self, pos, graph, vehicles, broken_edges, button=1):
@@ -80,21 +79,25 @@ class Dashboard:
                 return 'pause'
             if self.ui_rects['start'].collidepoint(pos):
                 return 'pause'
-            if self.ui_rects['stop'].collidepoint(pos):
-                return 'stop'
+            if self.ui_rects['create'].collidepoint(pos):
+                if is_right_click:
+                    self.create_mode = "Bệnh nhân" if self.create_mode == "Khách" else "Khách"
+                    self._sync_state()
+                    return "UI_UPDATED"
+                return 'create'
             if self.ui_rects['reset'].collidepoint(pos):
                 return 'reset'
             if self.ui_rects['obstacle'].collidepoint(pos):
                 return 'obstacle'
 
             for i in range(1, 4):
-                if self.ui_rects[f'map{i}'].collidepoint(pos):
+                if f'map{i}' in self.ui_rects and self.ui_rects[f'map{i}'].collidepoint(pos):
                     self.active_map = i
                     self.reset_scenario_data()
                     return ("START_SCENARIO", i)
 
-            for i in range(1, 7):
-                if self.ui_rects[f'grp{i}'].collidepoint(pos):
+            for i in range(1, 6):
+                if self.ui_rects.get(f'grp{i}') and self.ui_rects[f'grp{i}'].collidepoint(pos):
                     if current_time - self.last_click_time[i] < 500 and button == 1:
                         self.last_click_time[i] = current_time
                         return ("SPAWN_TAXI", i, self.algos[i][self.group_idx[i]])

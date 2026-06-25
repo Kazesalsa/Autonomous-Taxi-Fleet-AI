@@ -23,7 +23,7 @@ def run_backtracking(context) -> ExperimentResult:
                 del assign[var]
         return None
     res = backtrack(assignment)
-    return ExperimentResult("Backtracking", "CSP", res is not None, (time.perf_counter() - start_time) * 1000, {"steps": steps[0], "violations": 0 if res else -1}, None)
+    return ExperimentResult("Backtracking", "CSP", res is not None, (time.perf_counter() - start_time) * 1000, {"steps": steps[0], "violations": 0 if res else -1}, res)
 
 def run_ac3(context) -> ExperimentResult:
     start_time = time.perf_counter()
@@ -54,7 +54,7 @@ def run_ac3(context) -> ExperimentResult:
                 del assign[var]
         return None
     res = backtrack({})
-    return ExperimentResult("AC-3", "CSP", res is not None, (time.perf_counter() - start_time) * 1000, {"steps": steps}, None)
+    return ExperimentResult("AC-3", "CSP", res is not None, (time.perf_counter() - start_time) * 1000, {"steps": steps}, res)
 
 def run_min_conflicts(context) -> ExperimentResult:
     start_time = time.perf_counter()
@@ -67,7 +67,7 @@ def run_min_conflicts(context) -> ExperimentResult:
     while steps < context.max_steps:
         conflicted = [v for v in context.variables if get_conflicts(v, current[v], current) > 0]
         if not conflicted:
-            return ExperimentResult("Min-Conflicts", "CSP", True, (time.perf_counter() - start_time) * 1000, {"steps": steps, "violations": 0}, None)
+            return ExperimentResult("Min-Conflicts", "CSP", True, (time.perf_counter() - start_time) * 1000, {"steps": steps, "violations": 0}, current)
         var = random.choice(conflicted)
         min_c, best_vals = float('inf'), []
         for val in context.domains[var]:
@@ -79,4 +79,5 @@ def run_min_conflicts(context) -> ExperimentResult:
         current[var] = random.choice(best_vals)
         steps += 1
     violations = sum(1 for v in context.variables if get_conflicts(v, current[v], current) > 0)
-    return ExperimentResult("Min-Conflicts", "CSP", False, (time.perf_counter() - start_time) * 1000, {"steps": steps, "violations": violations}, None)
+    return ExperimentResult("Min-Conflicts", "CSP", False, (time.perf_counter() - start_time) * 1000, {"steps": steps, "violations": violations}, current)
+
