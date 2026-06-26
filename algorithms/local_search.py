@@ -5,74 +5,103 @@ from core.metrics import ExperimentResult
 
 def run_hill_climbing(context) -> ExperimentResult:
     start_time = time.perf_counter()
-    current_state = context.initial_state.copy()
-    current_score = context.objective_fn(current_state)
-    iterations = 0
-    while iterations < context.max_iterations:
+    graph, start_id, goal_id, h_fn = context.graph, context.start_id, context.goal_id, context.heuristic_fn
+    if start_id not in graph.nodes or goal_id not in graph.nodes:
+        return ExperimentResult("Hill Climbing", "Local Search", False, 0.0)
+    
+    current = start_id
+    path = [current]
+    nodes_expanded = 0
+    
+    while current != goal_id:
+        nodes_expanded += 1
         best_neighbor = None
-        best_score = float('inf')
-        for node, duration in current_state.items():
-            for delta in [-5, 5]:
-                new_dur = duration + delta
-                if 10 <= new_dur <= 120:
-                    neighbor = current_state.copy()
-                    neighbor[node] = new_dur
-                    score = context.objective_fn(neighbor)
-                    if score < best_score:
-                        best_score, best_neighbor = score, neighbor
-        if best_neighbor is None or best_score >= current_score:
+        best_h = float('inf')
+        
+        for edge in graph.nodes[current].edges:
+            n_id = edge.target_id
+            h = h_fn(n_id, goal_id)
+            if h < best_h:
+                best_h = h
+                best_neighbor = n_id
+                
+        # Bị kẹt ở cực đại cục bộ (Local Optima) - không có hàng xóm nào gần đích hơn
+        if best_neighbor is None or best_h >= h_fn(current, goal_id):
             break
-        current_state, current_score = best_neighbor, best_score
-        iterations += 1
-    return ExperimentResult("Hill Climbing", "Local Search", True, (time.perf_counter() - start_time) * 1000, {"iterations": iterations, "final_score": current_score}, None)
+            
+        current = best_neighbor
+        path.append(current)
+        
+    success = (current == goal_id)
+    return ExperimentResult("Hill Climbing", "Local Search", success, (time.perf_counter() - start_time) * 1000, {"nodes_expanded": nodes_expanded, "stuck": not success}, path)
 
 def run_simulated_annealing(context) -> ExperimentResult:
     start_time = time.perf_counter()
-    current_state = context.initial_state.copy()
-    current_score = context.objective_fn(current_state)
-    T, cooling_rate, iterations = 100.0, 0.95, 0
-    best_state, best_score = current_state, current_score
-    while iterations < context.max_iterations and T > 0.1:
-        if not current_state: break
-        node = random.choice(list(current_state.keys()))
-        new_dur = current_state[node] + random.choice([-5, 5])
-        if 10 <= new_dur <= 120:
-            neighbor = current_state.copy()
-            neighbor[node] = new_dur
-            neighbor_score = context.objective_fn(neighbor)
-            if neighbor_score < current_score or random.random() < math.exp((current_score - neighbor_score) / T):
-                current_state, current_score = neighbor, neighbor_score
-                if current_score < best_score:
-                    best_score, best_state = current_score, current_state
+    graph, start_id, goal_id, h_fn = context.graph, context.start_id, context.goal_id, context.heuristic_fn
+    if start_id not in graph.nodes or goal_id not in graph.nodes:
+        return ExperimentResult("Sim. Anneal", "Local Search", False, 0.0)
+    
+    current = start_id
+    path = [current]
+    T = 100.0
+    cooling_rate = 0.99
+    nodes_expanded = 0
+    
+    while current != goal_id and T > 0.1:
+        nodes_expanded += 1
+        neighbors = [edge.target_id for edge in graph.nodes[current].edges]
+        if not neighbors:
+            break
+            
+        next_node = random.choice(neighbors)
+        current_h = h_fn(current, goal_id)
+        next_h = h_fn(next_node, goal_id)
+        
+        # Nếu tốt hơn (gần đích hơn) -> chấp nhận luôn
+        # Nếu xấu hơn (xa đích hơn) -> chấp nhận với xác suất phụ thuộc vào T
+        if next_h < current_h or random.random() < math.exp((current_h - next_h) / T):
+            current = next_node
+            # Tránh path quá dài do đi lòng vòng
+            if current in path:
+                idx = path.index(current)
+                path = path[:idx+1]
+            else:
+                path.append(current)
+                
         T *= cooling_rate
-        iterations += 1
-    return ExperimentResult("Simulated Annealing", "Local Search", True, (time.perf_counter() - start_time) * 1000, {"iterations": iterations, "final_score": best_score}, None)
+        
+    success = (current == goal_id)
+    return ExperimentResult("Sim. Anneal", "Local Search", success, (time.perf_counter() - start_time) * 1000, {"nodes_expanded": nodes_expanded, "stuck": not success}, path)
 
 def run_local_beam_search(context) -> ExperimentResult:
     start_time = time.perf_counter()
-    k, states = context.k_beam, [context.initial_state.copy() for _ in range(context.k_beam)]
-    iterations, best_score = 0, float('inf')
-    while iterations < context.max_iterations:
-        all_neighbors = []
-        for state in states:
-            all_neighbors.append((context.objective_fn(state), state))
-            for node, duration in state.items():
-                for delta in [-5, 5]:
-                    if 10 <= duration + delta <= 120:
-                        neighbor = state.copy()
-                        neighbor[node] = duration + delta
-                        all_neighbors.append((context.objective_fn(neighbor), neighbor))
-        all_neighbors.sort(key=lambda x: x[0])
-        next_states, seen = [], set()
-        for score, state in all_neighbors:
-            st = tuple(sorted(state.items()))
-            if st not in seen:
-                seen.add(st)
-                next_states.append((score, state))
-            if len(next_states) == k: break
-        if not next_states: break
-        states = [s[1] for s in next_states]
-        if next_states[0][0] >= best_score: break
-        best_score = next_states[0][0]
-        iterations += 1
-    return ExperimentResult("Local Beam Search", "Local Search", True, (time.perf_counter() - start_time) * 1000, {"iterations": iterations, "final_score": best_score}, None)
+    graph, start_id, goal_id, h_fn = context.graph, context.start_id, context.goal_id, context.heuristic_fn
+    if start_id not in graph.nodes or goal_id not in graph.nodes:
+        return ExperimentResult("Local Beam", "Local Search", False, 0.0)
+        
+    k = getattr(context, 'k_beam', 3)
+    # Trạng thái là các path đang duyệt
+    beam = [[start_id]]
+    nodes_expanded = 0
+    
+    while beam:
+        next_beam = []
+        for path in beam:
+            current = path[-1]
+            if current == goal_id:
+                return ExperimentResult("Local Beam", "Local Search", True, (time.perf_counter() - start_time) * 1000, {"nodes_expanded": nodes_expanded}, path)
+                
+            nodes_expanded += 1
+            for edge in graph.nodes[current].edges:
+                n_id = edge.target_id
+                if n_id not in path: # Tránh vòng lặp
+                    next_beam.append(path + [n_id])
+                    
+        if not next_beam:
+            break
+            
+        # Sắp xếp tất cả các ứng viên theo heuristic của node cuối và lấy k best
+        next_beam.sort(key=lambda p: h_fn(p[-1], goal_id))
+        beam = next_beam[:k]
+        
+    return ExperimentResult("Local Beam", "Local Search", False, (time.perf_counter() - start_time) * 1000, {"nodes_expanded": nodes_expanded, "stuck": True}, beam[0] if beam else [start_id])

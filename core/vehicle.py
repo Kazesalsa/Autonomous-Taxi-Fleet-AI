@@ -34,17 +34,26 @@ class Vehicle:
     def set_path(self, path, graph):
         if not path: return
         self.final_goal_id = path[-1]
-        self.path = path
+        self.path = list(path)
         if len(self.path) > 1:
-            self.current_node_id = self.path.pop(0)
+            new_current = self.path.pop(0)
+            new_target = self.path[0]
+            
+            same_start_node = (self.current_edge_start_id == new_current)
+            
+            self.current_node_id = new_current
             self.current_edge_start_id = self.current_node_id
-            self.target_node_id = self.path[0]
+            self.target_node_id = new_target
+            
             if self.current_node_id in graph.nodes and self.target_node_id in graph.nodes:
                 n1 = graph.nodes[self.current_node_id]
-                self.x = n1.x
-                self.y = n1.y
                 n2 = graph.nodes[self.target_node_id]
-                self.angle = math.atan2(n2.y - n1.y, n2.x - n1.x)
+                
+                if (self.x == 0 and self.y == 0) or not same_start_node:
+                    self.x = n1.x
+                    self.y = n1.y
+                
+                self.angle = math.atan2(n2.y - self.y, n2.x - self.x)
 
     def update_position(self, graph):
         if self.state in ["STUCK_AT_OBSTACLE", "IDLE_IN_DEPOT"]: 
@@ -214,12 +223,14 @@ class ManualTaxi(Vehicle):
         from algorithms.registry import ALGORITHM_REGISTRY
         p = ALGORITHM_REGISTRY.get(getattr(self, 'algo', 'A*'), ALGORITHM_REGISTRY['A*'])(graph, self.current_node_id, self.customer_dict['start'])
         if p and len(p) > 1: self.set_path(p, graph)
-        else: self.set_path([self.current_node_id, self.customer_dict['start']], graph)
 
     def update_position(self, graph):
         super().update_position(graph)
         
         if self.state == "MOVING_TO_CUSTOMER" and not self.target_node_id:
+            if self.customer_dict and self.current_node_id != self.customer_dict['start']:
+                self.state = "STUCK"
+                return
             # Đã tới điểm đón khách
             self.state = "MOVING_TO_GOAL"
             self.has_picked_up = True
@@ -229,9 +240,11 @@ class ManualTaxi(Vehicle):
             from algorithms.registry import ALGORITHM_REGISTRY
             p = ALGORITHM_REGISTRY.get(getattr(self, 'algo', 'A*'), ALGORITHM_REGISTRY['A*'])(graph, self.current_node_id, self.customer_dict['goal'])
             if p and len(p) > 1: self.set_path(p, graph)
-            else: self.set_path([self.current_node_id, self.customer_dict['goal']], graph)
             
         elif self.state == "MOVING_TO_GOAL" and not self.target_node_id:
+            if self.customer_dict and self.current_node_id != self.customer_dict['goal']:
+                self.state = "STUCK"
+                return
             # Đã tới điểm trả khách
             self.state = "RETURNING_TO_PARKING"
             self.has_picked_up = False
@@ -246,7 +259,9 @@ class ManualTaxi(Vehicle):
             from algorithms.registry import ALGORITHM_REGISTRY
             p = ALGORITHM_REGISTRY.get(getattr(self, 'algo', 'A*'), ALGORITHM_REGISTRY['A*'])(graph, self.current_node_id, self.park_node)
             if p and len(p) > 1: self.set_path(p, graph)
-            else: self.set_path([self.current_node_id, self.park_node], graph)
             
         elif self.state == "RETURNING_TO_PARKING" and not self.target_node_id:
+            if hasattr(self, 'park_node') and self.current_node_id != self.park_node:
+                self.state = "STUCK"
+                return
             self.state = "IDLE_AT_PARKING"

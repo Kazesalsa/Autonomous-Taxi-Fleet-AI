@@ -84,14 +84,14 @@ def informed_wrapper(func, graph, start, goal):
     return path if path else generate_fallback_path(graph, start, goal)
 
 def local_search_wrapper(func, graph, start, goal):
-    # Khối Local Search tối ưu hóa tham số (Trả về lộ trình đi để xe di chuyển thực tế)
-    func(MockContext(graph, start, goal))
-    return generate_fallback_path(graph, start, goal)
+    res = func(MockContext(graph, start, goal))
+    path = getattr(res, 'path', None)
+    return path if isinstance(path, list) and path else generate_fallback_path(graph, start, goal)
 
 def complex_env_wrapper(func, graph, start, goal):
     res = func(MockContext(graph, start, goal))
     path = getattr(res, 'path', None)
-    return path if path else generate_fallback_path(graph, start, goal)
+    return path if isinstance(path, list) and path else generate_fallback_path(graph, start, goal)
 
 def csp_wrapper(func, graph, start, goal):
     func(MockContext(graph, start, goal))

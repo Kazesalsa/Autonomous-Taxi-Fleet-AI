@@ -70,7 +70,7 @@ def run_online_replanning(context) -> ExperimentResult:
 def run_sensorless_search(context) -> ExperimentResult:
     start_time = time.perf_counter()
     initial_belief = frozenset([context.start_id])
-    queue = deque([(initial_belief, [])])
+    queue = deque([(initial_belief, [context.start_id])])
     visited = {initial_belief}
     nodes_expanded, success, final_path = 0, False, []
     while queue:

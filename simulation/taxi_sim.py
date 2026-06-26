@@ -22,7 +22,7 @@ from core.map_data import NODES_DATA, EDGES_DATA
 
 EDGE_NODES = ['N1', 'N17', 'N6', 'N35', 'N79', 'N80', 'N82', 'N81', 'N45', 'N57', 'N20', 'N13', 'N27', 'N31', 'N10', 'N24']
 
-RESTRICTED_NODES = ['N83', 'N105']
+RESTRICTED_NODES = ['N105']
 RESTRICTED_EDGES_DATA = [e for e in EDGES_DATA if e[0] not in RESTRICTED_NODES and e[1] not in RESTRICTED_NODES]
 
 def init_hospital_ambulances(vehicles_list):
@@ -109,7 +109,7 @@ def run_simulation():
     _chosen_font = None
     for _f in _font_candidates:
         try:
-            _test = pygame.font.SysFont(_f, 19)
+            _test = pygame.font.SysFont(_f, 15)
             if _test:
                 _chosen_font = _f
                 break
@@ -118,9 +118,9 @@ def run_simulation():
     if not _chosen_font:
         _chosen_font = None  # will use pygame default
 
-    font = pygame.font.SysFont(_chosen_font, 19)
-    bold_font = pygame.font.SysFont(_chosen_font, 19, bold=True)
-    title_font = pygame.font.SysFont(_chosen_font, 28, bold=True)
+    font = pygame.font.SysFont(_chosen_font, 15)
+    bold_font = pygame.font.SysFont(_chosen_font, 15, bold=True)
+    title_font = pygame.font.SysFont(_chosen_font, 22, bold=True)
 
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     try:
@@ -132,7 +132,7 @@ def run_simulation():
     renderer = Renderer(screen, font, bold_font, title_font)
     dashboard = Dashboard()
     
-    vehicles = [create_random_civilian(graph) for _ in range(40)]
+    vehicles = [create_random_civilian(graph) for _ in range(12)]
     hospital_ambs = init_hospital_ambulances(vehicles)
     
     customers = []; broken_edges = {} 
@@ -249,20 +249,15 @@ def run_simulation():
                         vehicles = [v for v in vehicles if not v.v_id.startswith('TX_')] # Xoá các taxi hiện có
                         customers.clear()
 
-                        spawn_taxi(5, "Minimax", 'N96', graph, vehicles, Vehicle)
-                        spawn_taxi(5, "Alpha-Beta", 'N96', graph, vehicles, Vehicle)
-                        spawn_taxi(5, "Expect", 'N96', graph, vehicles, Vehicle)
-                        
+                        # Đổi kịch bản 2: Vị trí ngẫu nhiên và liên tục
+                        traffic_manager.is_scenario_2 = True
                         valid_nodes = [n for n in graph.nodes.keys() if n not in RESTRICTED_NODES]
-                        scen2_start = random.choice(valid_nodes)
-                        scen2_goal = random.choice(valid_nodes)
-                        while scen2_goal == scen2_start: scen2_goal = random.choice(valid_nodes)
+                        start_node = random.choice(valid_nodes)
+                        goal_node = random.choice(valid_nodes)
+                        while goal_node == start_node: goal_node = random.choice(valid_nodes)
                         
-                        traffic_manager.scen2_start = scen2_start
-                        traffic_manager.scen2_goal = scen2_goal
-
                         for i in range(3):
-                            cust = {'start': scen2_start, 'goal': scen2_goal, 'picked_up': False, 'delivered': False, 'label': get_alpha_label(customer_spawn_count), 'fare': 5000, 'is_scenario_2': True}
+                            cust = {'start': start_node, 'goal': goal_node, 'picked_up': False, 'delivered': False, 'label': get_alpha_label(customer_spawn_count), 'fare': 5000, 'is_scenario_2': True}
                             customers.append(cust)
                             customer_spawn_count += 1
                         
@@ -270,6 +265,8 @@ def run_simulation():
                         dashboard.add_log("Kịch bản 2: Bắt đầu đua!")
                     elif scenario_id == 1:
                         is_endless_mode = False
+                        if hasattr(traffic_manager, 'is_scenario_2'):
+                            del traffic_manager.is_scenario_2
                         customers.clear()
                         valid_nodes = [n for n in graph.nodes.keys() if n not in RESTRICTED_NODES]
                         for i in range(10):
@@ -282,9 +279,11 @@ def run_simulation():
                         dashboard.add_log("Đã tự động tạo 10 khách hàng (Kịch bản 1).")
 
                 elif click_result == "reset":
-                    vehicles = [create_random_civilian(graph) for _ in range(20)]
+                    vehicles = [create_random_civilian(graph) for _ in range(12)]
                     hospital_ambs = init_hospital_ambulances(vehicles)
                     customers.clear(); broken_edges.clear()
+                    if hasattr(traffic_manager, 'is_scenario_2'):
+                        del traffic_manager.is_scenario_2
                     obstacle_mode = False
                     traffic_manager.csp_overrides = {}
                     is_paused = False
@@ -297,20 +296,39 @@ def run_simulation():
 
             is_endless = getattr(sys.modules[__name__], 'is_endless_mode', False)
             if is_endless:
-                if not hasattr(traffic_manager, 'customer_blueprints'):
+                if not hasattr(traffic_manager, 'is_scenario_2'):
+                    if not hasattr(traffic_manager, 'customer_blueprints'):
 
-                    valid = [n for n in graph.nodes.keys() if n not in RESTRICTED_NODES]
-                    traffic_manager.customer_blueprints = valid
-                    traffic_manager.active_customers = customers
+                        valid = [n for n in graph.nodes.keys() if n not in RESTRICTED_NODES]
+                        traffic_manager.customer_blueprints = valid
+                        traffic_manager.active_customers = customers
 
-                while len(traffic_manager.active_customers) < 10:
-                    start_node = random.choice(traffic_manager.customer_blueprints)
-                    goal_node = random.choice(traffic_manager.customer_blueprints)
-                    while goal_node == start_node: goal_node = random.choice(traffic_manager.customer_blueprints)
-                    cust = {'start': start_node, 'goal': goal_node, 'picked_up': False, 'delivered': False, 'label': get_alpha_label(customer_spawn_count), 'fare': 5000}
-                    customers.append(cust)
-                    customer_spawn_count += 1
+                    while len(traffic_manager.active_customers) < 10:
+                        start_node = random.choice(traffic_manager.customer_blueprints)
+                        goal_node = random.choice(traffic_manager.customer_blueprints)
+                        while goal_node == start_node: goal_node = random.choice(traffic_manager.customer_blueprints)
+                        cust = {'start': start_node, 'goal': goal_node, 'picked_up': False, 'delivered': False, 'label': get_alpha_label(customer_spawn_count), 'fare': 5000}
+                        customers.append(cust)
+                        customer_spawn_count += 1
                 
+            if hasattr(traffic_manager, 'is_scenario_2'):
+                scen2_delivered = [c for c in customers if c.get('is_scenario_2') and c.get('delivered') and not c.get('respawned')]
+                if len(scen2_delivered) >= 3:
+                    for c in scen2_delivered[:3]:
+                        c['respawned'] = True
+                        
+                    valid_nodes = getattr(traffic_manager, 'customer_blueprints', [n for n in graph.nodes.keys() if n not in RESTRICTED_NODES])
+                    new_start = random.choice(valid_nodes)
+                    new_goal = random.choice(valid_nodes)
+                    while new_goal == new_start: new_goal = random.choice(valid_nodes)
+                    
+                    for _ in range(3):
+                        new_cust = {'start': new_start, 'goal': new_goal, 'picked_up': False, 'delivered': False, 'label': get_alpha_label(customer_spawn_count), 'fare': 5000, 'is_scenario_2': True}
+                        customers.append(new_cust)
+                        customer_spawn_count += 1
+                        
+                    update_customer_labels_and_fares(customers)
+                        
             for v in vehicles:
                 if v.v_id.startswith('TX_') and not isinstance(v, ManualTaxi):
                     if not v.target_node_id: 
@@ -322,7 +340,6 @@ def run_simulation():
                                 try:
                                     p = ALGORITHM_REGISTRY[getattr(v, 'algo', 'A*')](restricted_graph, v.current_node_id, assigned['goal'])
                                     if p and len(p) > 1: v.set_path(p, restricted_graph)
-                                    else: v.set_path([v.current_node_id, assigned['goal']], restricted_graph)
                                 except Exception: pass
                             elif v.current_node_id == assigned['goal'] and assigned.get('picked_up'):
                                 assigned['delivered'] = True
@@ -331,23 +348,17 @@ def run_simulation():
                                 v.has_picked_up = False
                                 v.completed_trips = getattr(v, 'completed_trips', 0) + 1
                                 
-                                if assigned.get('is_scenario_2') and hasattr(traffic_manager, 'scen2_start'):
-                                    new_cust = {'start': traffic_manager.scen2_start, 'goal': traffic_manager.scen2_goal, 'picked_up': False, 'delivered': False, 'label': get_alpha_label(customer_spawn_count), 'fare': 5000, 'is_scenario_2': True}
-                                    customers.append(new_cust)
-                                    customer_spawn_count += 1
-                                    update_customer_labels_and_fares(customers)
                             elif not v.target_node_id:
                                 # Nếu xe bị mất đường (đã đi hết path ngắn hoặc lỗi path) nhưng chưa tới đích, tính lại đường!
                                 tgt = assigned['goal'] if assigned.get('picked_up') else assigned['start']
                                 try:
                                     p = ALGORITHM_REGISTRY[getattr(v, 'algo', 'A*')](restricted_graph, v.current_node_id, tgt)
                                     if p and len(p) > 1: v.set_path(p, restricted_graph)
-                                    else: v.set_path([v.current_node_id, tgt], restricted_graph)
                                 except Exception: pass
 
                         
                         if not getattr(v, 'assigned_customers', []):
-                            unassigned = [c for c in customers if not c.get('delivered', False) and not any(c in getattr(x, 'assigned_customers', []) or c is getattr(x, 'customer_dict', None) for x in vehicles if x.v_id.startswith('TX_'))]
+                            unassigned = [c for c in customers if not c.get('is_patient', False) and not c.get('delivered', False) and not any(c in getattr(x, 'assigned_customers', []) or c is getattr(x, 'customer_dict', None) for x in vehicles if x.v_id.startswith('TX_'))]
                             if unassigned:
 
                                 best_c = min(unassigned, key=lambda c: math.hypot(graph.nodes[c['start']].x - graph.nodes[v.current_node_id].x, graph.nodes[c['start']].y - graph.nodes[v.current_node_id].y))
@@ -355,7 +366,6 @@ def run_simulation():
                                 try:
                                     p = ALGORITHM_REGISTRY[getattr(v, 'algo', 'A*')](restricted_graph, v.current_node_id, best_c['start'])
                                     if p and len(p) > 1: v.set_path(p, restricted_graph)
-                                    else: v.set_path([v.current_node_id, best_c['start']], restricted_graph)
                                 except Exception: pass
 
             traffic_manager.update(graph, vehicles)
@@ -363,7 +373,7 @@ def run_simulation():
             traffic_flow.manage_distances(vehicles, graph, broken_edges)
 
             for v in vehicles:
-                if v.state not in ["SAFE_WAIT", "STUCK_AT_OBSTACLE", "IDLE_AT_HOSPITAL", "MOVING_TO_PATIENT", "RETURNING_TO_HOSPITAL", "IDLE_AT_PARKING", "MOVING_TO_CUSTOMER", "MOVING_TO_GOAL", "RETURNING_TO_PARKING"]:
+                if v.state not in ["SAFE_WAIT", "STUCK_AT_OBSTACLE", "IDLE_AT_HOSPITAL", "MOVING_TO_PATIENT", "RETURNING_TO_HOSPITAL", "IDLE_AT_PARKING", "MOVING_TO_CUSTOMER", "MOVING_TO_GOAL", "RETURNING_TO_PARKING", "STUCK"]:
                     v.state = "MOVING"
 
                 if v.v_id.startswith('TX_'):
@@ -377,8 +387,8 @@ def run_simulation():
                                 v.path = []
 
                 if isinstance(v, ManualTaxi):
-                    if v.state in ["IDLE_AT_PARKING", "IDLE"]:
-                        unassigned = [c for c in customers if not c.get('delivered')]
+                    if v.state in ["IDLE_AT_PARKING", "IDLE", "RETURNING_TO_PARKING"]:
+                        unassigned = [c for c in customers if not c.get('is_patient', False) and not c.get('delivered')]
                         unassigned = [c for c in unassigned if not any(c in getattr(x, 'assigned_customers', []) or c is getattr(x, 'customer_dict', None) for x in vehicles if x.v_id.startswith('TX_'))]
                         if unassigned:
 
@@ -392,7 +402,7 @@ def run_simulation():
                         continue
                     else:
                         current = v.current_node_id
-                        if not getattr(v, 'is_ambulance', False) and getattr(v, 'state', '') != "IDLE_AT_PARKING":
+                        if not getattr(v, 'is_ambulance', False) and getattr(v, 'state', '') not in ["IDLE_AT_PARKING", "STUCK"]:
                             next_choices = [e for e in RESTRICTED_EDGES_DATA if e[0] == current]
                             if not str(getattr(v, 'v_id', '')).startswith('TX_'):
                                 TAXI_PARKING_NODES = ['N111', 'N112', 'N114', 'N115', 'N116', 'N117']

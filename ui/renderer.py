@@ -284,9 +284,9 @@ class Renderer:
         
         # Tiêu đề cột - bright white
         self.screen.blit(self.bold_font.render("Thuật toán", True, (255, 255, 255)), (MAP_WIDTH + 12, 422))
-        self.screen.blit(self.bold_font.render("Khách", True, (255, 255, 255)), (MAP_WIDTH + 110, 422))
-        self.screen.blit(self.bold_font.render("Chi phí", True, (255, 255, 255)), (MAP_WIDTH + 170, 422))
-        self.screen.blit(self.bold_font.render("DT", True, (255, 255, 255)), (MAP_WIDTH + 245, 422))
+        self.screen.blit(self.bold_font.render("Khách", True, (255, 255, 255)), (MAP_WIDTH + 120, 422))
+        self.screen.blit(self.bold_font.render("Chi phí", True, (255, 255, 255)), (MAP_WIDTH + 185, 422))
+        self.screen.blit(self.bold_font.render("DT", True, (255, 255, 255)), (MAP_WIDTH + 260, 422))
         
         # Đường gạch chân tiêu đề sáng hơn
         pygame.draw.line(self.screen, (140, 145, 165), (MAP_WIDTH + 12, 445), (MAP_WIDTH + DASHBOARD_WIDTH - 12, 445), 1)
@@ -302,9 +302,9 @@ class Renderer:
                 self.screen.blit(stripe, (MAP_WIDTH + 5, y_row - 2))
             
             self.screen.blit(self.bold_font.render(name, True, (240, 242, 255)), (MAP_WIDTH + 12, y_row))
-            self.screen.blit(self.bold_font.render(data.get('customers', '-'), True, (255, 220, 50)), (MAP_WIDTH + 110, y_row))
-            self.screen.blit(self.bold_font.render(f"{data['cost']:,}đ", True, (255, 100, 80)), (MAP_WIDTH + 170, y_row))
-            self.screen.blit(self.bold_font.render(f"{data['revenue']:,}đ", True, (80, 230, 130)), (MAP_WIDTH + 245, y_row))
+            self.screen.blit(self.bold_font.render(data.get('customers', '-'), True, (255, 220, 50)), (MAP_WIDTH + 120, y_row))
+            self.screen.blit(self.bold_font.render(f"{data['cost']:,}đ", True, (255, 100, 80)), (MAP_WIDTH + 185, y_row))
+            self.screen.blit(self.bold_font.render(f"{data['revenue']:,}đ", True, (80, 230, 130)), (MAP_WIDTH + 260, y_row))
             
             y_row += 26
 

@@ -3,7 +3,6 @@ import sys
 import ctypes
 import pygame
 
-# Set High DPI awareness on Windows to prevent blurry UI and text
 if os.name == 'nt':
     try:
         ctypes.windll.shcore.SetProcessDpiAwareness(1)
