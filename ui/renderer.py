@@ -212,7 +212,8 @@ class Renderer:
     def draw_dashboard(self, log_messages, ui_rects, is_paused, select_mode, show_fog):
         """Vẽ bảng điều khiển Dashboard bên tay phải"""
         pygame.draw.rect(self.screen, COLOR_DASHBOARD, (MAP_WIDTH, 0, DASHBOARD_WIDTH, HEIGHT))
-        pygame.draw.line(self.screen, (70, 70, 80), (MAP_WIDTH, 0), (MAP_WIDTH, HEIGHT), 4)
+        # Bright separator line between map and dashboard
+        pygame.draw.line(self.screen, (90, 95, 110), (MAP_WIDTH, 0), (MAP_WIDTH, HEIGHT), 3)
 
         sync_data = ui_rects.get('_state_sync', {})
         active_map = sync_data.get('active_map', 1)
@@ -225,16 +226,26 @@ class Renderer:
         # Hàng 1
         self._draw_btn(ui_rects['start'], "Bắt đầu", (46, 204, 113))
         
-        # Vẽ nút Tạo (Create) 
+        # Vẽ nút Tạo (Create) - toggle giữa Khách và Bệnh nhân
         create_rect = ui_rects['create']
-        pygame.draw.rect(self.screen, (231, 76, 60), create_rect, border_radius=6)
+        create_mode = sync_data.get('create_mode', "Khách")
+        
+        if create_mode == "Bệnh nhân":
+            btn_color = (155, 89, 182)  # Màu tím (Bệnh nhân)
+            mode_text = "Bệnh nhân"
+            text_color = (255, 255, 255)
+        else:  # "Khách" (mặc định)
+            btn_color = (46, 204, 113)  # Màu xanh lá (Khách hàng)
+            mode_text = "Khách"
+            text_color = (0, 0, 0)
+
+        pygame.draw.rect(self.screen, btn_color, create_rect, border_radius=6)
         pygame.draw.rect(self.screen, (255, 255, 255), create_rect, width=2, border_radius=6)
         
-        txt_create = self.bold_font.render("Tạo", True, (255, 255, 255))
+        txt_create = self.bold_font.render("Tạo", True, text_color)
         self.screen.blit(txt_create, (create_rect.centerx - txt_create.get_width() / 2, create_rect.y + 4))
         
-        create_mode = sync_data.get('create_mode', "Khách")
-        txt_mode = self.font.render(create_mode, True, (255, 255, 200))
+        txt_mode = self.font.render(mode_text, True, text_color)
         self.screen.blit(txt_mode, (create_rect.centerx - txt_mode.get_width() / 2, create_rect.y + 22))
 
         # Hàng 2: Reset & Vật cản
@@ -252,38 +263,60 @@ class Renderer:
 
         # Hàng 4: 5 nhóm thuật toán Panel
         for i in range(1, 6):
-            color = (241, 196, 15) if active_group == i else (60, 60, 60)
+            is_active = (active_group == i)
+            color = (241, 196, 15) if is_active else (55, 58, 68)
             algo_name = algos[i][group_idx[i]]
-            self._draw_btn(ui_rects[f'grp{i}'], f"N{i}: {algo_name}", color, use_small=True)
+            btn_rect = ui_rects[f'grp{i}']
+            pygame.draw.rect(self.screen, color, btn_rect, border_radius=6)
+            # Bright border: white when active, gray when inactive
+            border_col = (255, 255, 255) if is_active else (130, 135, 150)
+            pygame.draw.rect(self.screen, border_col, btn_rect, width=2, border_radius=6)
+            txt_col = (20, 20, 20) if is_active else (230, 232, 240)
+            lbl = self.bold_font.render(f"N{i}: {algo_name}", True, txt_col)
+            self.screen.blit(lbl, (btn_rect.centerx - lbl.get_width() / 2, btn_rect.centery - lbl.get_height() / 2))
 
         # BẢNG SO SÁNH HIỆU NĂNG REAL-TIME
-        self.screen.blit(self.title_font.render("SO SÁNH HIỆU NĂNG", True, (241, 196, 15)), (MAP_WIDTH + 15, 385))
+        # Title with accent underline
+        title_surf = self.title_font.render("SO SÁNH HIỆU NĂNG", True, (255, 215, 0))
+        self.screen.blit(title_surf, (MAP_WIDTH + 15, 385))
+        pygame.draw.line(self.screen, (255, 215, 0), (MAP_WIDTH + 15, 385 + title_surf.get_height() + 2),
+                         (MAP_WIDTH + 15 + title_surf.get_width(), 385 + title_surf.get_height() + 2), 2)
         
-        # Tiêu đề cột
-        self.screen.blit(self.bold_font.render("Thuật toán", True, (200, 200, 200)), (MAP_WIDTH + 15, 420))
-        self.screen.blit(self.bold_font.render("Khách", True, (200, 200, 200)), (MAP_WIDTH + 105, 420))
-        self.screen.blit(self.bold_font.render("Chi phí", True, (200, 200, 200)), (MAP_WIDTH + 160, 420))
-        self.screen.blit(self.bold_font.render("Doanh thu", True, (200, 200, 200)), (MAP_WIDTH + 230, 420))
+        # Tiêu đề cột - bright white
+        self.screen.blit(self.bold_font.render("Thuật toán", True, (255, 255, 255)), (MAP_WIDTH + 12, 422))
+        self.screen.blit(self.bold_font.render("Khách", True, (255, 255, 255)), (MAP_WIDTH + 110, 422))
+        self.screen.blit(self.bold_font.render("Chi phí", True, (255, 255, 255)), (MAP_WIDTH + 170, 422))
+        self.screen.blit(self.bold_font.render("DT", True, (255, 255, 255)), (MAP_WIDTH + 245, 422))
         
-        # Đường gạch chân tiêu đề
-        pygame.draw.line(self.screen, (100, 100, 110), (MAP_WIDTH + 15, 440), (MAP_WIDTH + DASHBOARD_WIDTH - 15, 440), 1)
+        # Đường gạch chân tiêu đề sáng hơn
+        pygame.draw.line(self.screen, (140, 145, 165), (MAP_WIDTH + 12, 445), (MAP_WIDTH + DASHBOARD_WIDTH - 12, 445), 1)
 
         leaderboard = metrics.get('taxi_leaderboard', {})
         y_row = 450
         
         for name, data in leaderboard.items():
-            self.screen.blit(self.font.render(name, True, (255, 255, 255)), (MAP_WIDTH + 15, y_row))
-            self.screen.blit(self.font.render(data.get('customers', '-'), True, (241, 196, 15)), (MAP_WIDTH + 105, y_row))
-            self.screen.blit(self.font.render(f"{data['cost']:,}đ", True, (231, 76, 60)), (MAP_WIDTH + 160, y_row))
-            self.screen.blit(self.font.render(f"{data['revenue']:,}đ", True, (46, 204, 113)), (MAP_WIDTH + 230, y_row))
+            # Zebra stripe for rows
+            if list(leaderboard.keys()).index(name) % 2 == 0:
+                stripe = pygame.Surface((DASHBOARD_WIDTH - 10, 22), pygame.SRCALPHA)
+                stripe.fill((255, 255, 255, 12))
+                self.screen.blit(stripe, (MAP_WIDTH + 5, y_row - 2))
             
-            y_row += 24
+            self.screen.blit(self.bold_font.render(name, True, (240, 242, 255)), (MAP_WIDTH + 12, y_row))
+            self.screen.blit(self.bold_font.render(data.get('customers', '-'), True, (255, 220, 50)), (MAP_WIDTH + 110, y_row))
+            self.screen.blit(self.bold_font.render(f"{data['cost']:,}đ", True, (255, 100, 80)), (MAP_WIDTH + 170, y_row))
+            self.screen.blit(self.bold_font.render(f"{data['revenue']:,}đ", True, (80, 230, 130)), (MAP_WIDTH + 245, y_row))
+            
+            y_row += 26
 
     def _draw_btn(self, rect, text, color, use_small=False):
         pygame.draw.rect(self.screen, color, rect, border_radius=6)
-        pygame.draw.rect(self.screen, (255, 255, 255), rect, width=2, border_radius=6)
+        # Bright border always white
+        pygame.draw.rect(self.screen, (200, 205, 215), rect, width=2, border_radius=6)
         fnt = self.font if use_small else self.bold_font
-        txt = fnt.render(text, True, (0, 0, 0) if color[0] > 200 or color == (46, 204, 113) else (255, 255, 255))
+        # Determine text color: dark on bright buttons, white on dark buttons
+        luminance = 0.299 * color[0] + 0.587 * color[1] + 0.114 * color[2]
+        txt_col = (15, 15, 15) if luminance > 160 else (245, 247, 255)
+        txt = fnt.render(text, True, txt_col)
         self.screen.blit(txt, (rect.centerx - txt.get_width() / 2, rect.centery - txt.get_height() / 2))
 
     def draw_focused_vehicle_ui(self, vehicle):

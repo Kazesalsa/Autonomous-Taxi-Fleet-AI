@@ -103,14 +103,29 @@ def run_simulation():
     pygame.display.set_caption("AI Taxi Fleet Management - CSP Active")
     clock = pygame.time.Clock()
     
-    font = pygame.font.SysFont("Arial", 15)
-    bold_font = pygame.font.SysFont("Arial", 15, bold=True)
-    title_font = pygame.font.SysFont("Arial", 22, bold=True)
+    pygame.font.init()
+    # Try Segoe UI first (sharpest on Windows), fall back to Arial
+    _font_candidates = ["Segoe UI", "Calibri", "Arial"]
+    _chosen_font = None
+    for _f in _font_candidates:
+        try:
+            _test = pygame.font.SysFont(_f, 19)
+            if _test:
+                _chosen_font = _f
+                break
+        except Exception:
+            pass
+    if not _chosen_font:
+        _chosen_font = None  # will use pygame default
+
+    font = pygame.font.SysFont(_chosen_font, 19)
+    bold_font = pygame.font.SysFont(_chosen_font, 19, bold=True)
+    title_font = pygame.font.SysFont(_chosen_font, 28, bold=True)
 
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     try:
         bg_image = pygame.image.load(os.path.join(base_dir, "map.png")).convert()
-        bg_image = pygame.transform.scale(bg_image, (MAP_WIDTH, HEIGHT))
+        bg_image = pygame.transform.smoothscale(bg_image, (MAP_WIDTH, HEIGHT))
     except Exception: bg_image = None
 
     graph, restricted_graph = init_custom_map()
@@ -135,7 +150,18 @@ def run_simulation():
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 click_result = dashboard.handle_click(event.pos, graph, vehicles, broken_edges, event.button)
                 
+                if click_result == "CANCEL_SPAWN":
+                    pending_spawn_algo = None
+                    pending_spawn_group = None
+                    dashboard.active_group = None
+                    dashboard._sync_state()
+                    dashboard.add_log("Đã huỷ chọn thuật toán spawn xe")
+                    continue
 
+                if click_result == "UI_UPDATED":
+                    if dashboard.create_mode != "Khách":
+                        pending_customer_start = None
+                    continue
 
                 if isinstance(click_result, tuple) and click_result[0] == "NODE" and pending_spawn_algo:
                     n_id = click_result[1]
@@ -145,11 +171,13 @@ def run_simulation():
                         v_cls = Vehicle if grp_id == 5 else ManualTaxi
                         v = spawn_taxi(grp_id, algo, n_id, graph, vehicles, v_cls)
                         dashboard.add_log(f"Đã tạo {v.v_id} ({algo}) tại {n_id}")
-                        pending_spawn_algo = None
-                        pending_spawn_group = None
-                        dashboard.active_group = None
-                        dashboard._sync_state()
-                        continue
+                    else:
+                        dashboard.add_log(f"{n_id} không hợp lệ! Chọn node nằm ở viền bản đồ (A, B, C...)")
+                    pending_spawn_algo = None
+                    pending_spawn_group = None
+                    dashboard.active_group = None
+                    dashboard._sync_state()
+                    continue
 
                 if isinstance(click_result, tuple) and click_result[0] == "NODE" and not pending_spawn_algo:
                     n_id = click_result[1]
@@ -182,6 +210,37 @@ def run_simulation():
                     continue
 
                 if click_result == "pause": is_paused = not is_paused
+
+                elif click_result == "obstacle":
+                    obstacle_mode = not obstacle_mode
+                    dashboard.add_log(f"Chế độ vật cản: {'Bật - click vào đường để đặt đá' if obstacle_mode else 'Tắt'}")
+
+                elif click_result == "create":
+                    modes = ["Khách", "Bệnh nhân"]
+                    idx = modes.index(dashboard.create_mode) if dashboard.create_mode in modes else 0
+                    dashboard.create_mode = modes[(idx + 1) % len(modes)]
+                    dashboard._sync_state(obstacle_mode=obstacle_mode)
+
+                elif isinstance(click_result, tuple) and click_result[0] == "REMOVE_BLOCK":
+                    edge_id = click_result[1]
+                    if edge_id in broken_edges:
+                        del broken_edges[edge_id]
+                        dashboard.add_log(f"Đã xóa vật cản")
+
+                elif isinstance(click_result, tuple) and click_result[0] == "EDGE" and obstacle_mode:
+                    u_id, v_id, proj, edge_dir = click_result[1], click_result[2], click_result[3], click_result[4]
+                    edge_key = f"{u_id}_{v_id}"
+                    if edge_key not in broken_edges:
+                        broken_edges[edge_key] = {
+                            'u': u_id, 'v': v_id,
+                            'pos': proj,
+                            'dir': edge_dir,
+                            'edges': {(u_id, v_id), (v_id, u_id)}
+                        }
+                        dashboard.add_log(f"Đã đặt vật cản tại {u_id}→{v_id}")
+                    else:
+                        del broken_edges[edge_key]
+                        dashboard.add_log(f"Đã xóa vật cản {u_id}→{v_id}")
 
                 elif isinstance(click_result, tuple) and click_result[0] == "START_SCENARIO":
                     scenario_id = click_result[1]
@@ -225,7 +284,8 @@ def run_simulation():
                 elif click_result == "reset":
                     vehicles = [create_random_civilian(graph) for _ in range(20)]
                     hospital_ambs = init_hospital_ambulances(vehicles)
-                    customers.clear(); broken_edges.clear() 
+                    customers.clear(); broken_edges.clear()
+                    obstacle_mode = False
                     traffic_manager.csp_overrides = {}
                     is_paused = False
                 elif isinstance(click_result, tuple) and click_result[0] == "SPAWN_TAXI":
@@ -359,7 +419,7 @@ def run_simulation():
                         
                     taxi_leaderboard[display_name] = {'cost': cst, 'revenue': rev, 'state': getattr(v, 'state', 'UNK'), 'customers': lbls}
             dashboard.metrics['taxi_leaderboard'] = taxi_leaderboard
-        dashboard._sync_state()
+        dashboard._sync_state(obstacle_mode=obstacle_mode)
         screen.fill(COLOR_BG)
         if bg_image: screen.blit(bg_image, (0, 0))
         

@@ -10,7 +10,6 @@ class Dashboard:
         self.active_group = None
         self.create_mode = "Khách"
         self.group_idx = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
-        self.last_click_time = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
         self.algos = {
             1: ["BFS", "DFS", "UCS"],
             2: ["A*", "GBFS", "W-A*"],
@@ -56,7 +55,7 @@ class Dashboard:
         self.metrics = {"distance": 0, "revenue": 0, "status_msg": "", "status_color": (255, 255, 255)}
         self._sync_state()
 
-    def _sync_state(self):
+    def _sync_state(self, obstacle_mode=False):
         # Đảm bảo giữ cấu trúc taxi_leaderboard động để cập nhật điểm từ xe thực tế
         leaderboard = self.metrics.get('taxi_leaderboard', {})
         self.ui_rects['_state_sync'] = {
@@ -65,7 +64,7 @@ class Dashboard:
             'group_idx': self.group_idx,
             'algos': self.algos,
             'metrics': self.metrics,
-            'obstacle_mode': False,
+            'obstacle_mode': obstacle_mode,
             'create_mode': self.create_mode
         }
 
@@ -98,18 +97,16 @@ class Dashboard:
 
             for i in range(1, 6):
                 if self.ui_rects.get(f'grp{i}') and self.ui_rects[f'grp{i}'].collidepoint(pos):
-                    if current_time - self.last_click_time[i] < 500 and button == 1:
-                        self.last_click_time[i] = current_time
-                        return ("SPAWN_TAXI", i, self.algos[i][self.group_idx[i]])
-                    
-                    self.last_click_time[i] = current_time
-                    
                     if is_right_click:
+                        # Click chuột phải: chỉ đổi thuật toán, không spawn
                         self.group_idx[i] = (self.group_idx[i] + 1) % len(self.algos[i])
-                        self.active_group = i
+                        self._sync_state()
+                        return "UI_UPDATED"
                     else:
-                        self.active_group = i if self.active_group != i else None
-                    clicked_ui = True
+                        # Click chuột trái: chọn nhóm và vào chế độ spawn ngay lập tức
+                        self.active_group = i
+                        self._sync_state()
+                        return ("SPAWN_TAXI", i, self.algos[i][self.group_idx[i]])
 
             if clicked_ui:
                 # ĐÃ LOẠI BỎ TOÀN BỘ LOGIC TỰ TĂNG KHOẢNG CÁCH/TIỀN GIẢ LẬP ĐỂ KHÔNG BỊ SAI SỐ
