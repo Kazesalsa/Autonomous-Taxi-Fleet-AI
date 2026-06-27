@@ -13,9 +13,9 @@ class Renderer:
         """Vẽ các hòn đá vật cản, khách hàng kèm hiệu ứng thu phóng và hệ thống đèn giao thông lên bản đồ"""
         
         # --- VẼ ĐƯỜNG LỘ TRÌNH CHO XE ĐƯỢC CHỌN (FOCUS) ---
-        if focused_vehicle:
+        if focused_vehicle and hasattr(focused_vehicle, 'path') and isinstance(focused_vehicle.path, list) and focused_vehicle.path:
             path_pts = [(focused_vehicle.x, focused_vehicle.y)]
-            if focused_vehicle.target_node_id in graph.nodes:
+            if focused_vehicle.target_node_id and focused_vehicle.target_node_id in graph.nodes:
                 n = graph.nodes[focused_vehicle.target_node_id]
                 path_pts.append((n.x, n.y))
             for n_id in focused_vehicle.path:
@@ -53,6 +53,8 @@ class Renderer:
         outer_radius = int(8 + pulse_factor * 8)
         
         for cust in customers:
+            if cust.get('canceled', False): continue
+            
             lbl_text = cust.get('label', '')
             is_patient = cust.get('is_patient', False)
             
@@ -63,10 +65,7 @@ class Renderer:
 
 
                 
-                if not cust.get('agree_to_share', True):
-                    glow_color = (241, 196, 15, 80) 
-                    core_color = (241, 196, 15) 
-                elif is_patient:
+                if is_patient:
                     glow_color = (155, 89, 182, 80) # Purple for patient
                     core_color = (155, 89, 182)
                 else:
@@ -117,7 +116,13 @@ class Renderer:
                 color = data['color']
                 
                 pygame.draw.rect(self.screen, (30, 30, 30), (px - 6, py - 14, 12, 28), border_radius=3)
-                pygame.draw.rect(self.screen, (100, 100, 100), (px - 6, py - 14, 12, 28), 1, border_radius=3)
+                if data.get('is_override', False):
+                    pygame.draw.rect(self.screen, (0, 255, 255), (px - 8, py - 16, 16, 32), 2, border_radius=4)
+                    glow = pygame.Surface((32, 48), pygame.SRCALPHA)
+                    pygame.draw.rect(glow, (0, 255, 255, 60), (0, 0, 32, 48), border_radius=4)
+                    self.screen.blit(glow, (px - 16, py - 24))
+                else:
+                    pygame.draw.rect(self.screen, (100, 100, 100), (px - 6, py - 14, 12, 28), 1, border_radius=3)
                 
                 pygame.draw.circle(self.screen, (60, 20, 20), (px, py - 8), 3) 
                 pygame.draw.circle(self.screen, (60, 60, 20), (px, py), 3)     

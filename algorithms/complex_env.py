@@ -28,7 +28,21 @@ def run_and_or_search(context) -> ExperimentResult:
         if p_blocked is None: return None
         return {"if_clear": p_clear, "if_blocked": p_blocked}
     result = or_search(context.start_id, [])
-    return ExperimentResult("AND-OR Search", "Complex Env", result is not None, (time.perf_counter() - start_time) * 1000, {"nodes_expanded": nodes_expanded[0]}, None)
+    
+    # Flatten decision tree to a single path
+    path = []
+    curr_tree = result
+    curr_node = context.start_id
+    while isinstance(curr_tree, dict):
+        if "if_clear" in curr_tree:
+            curr_tree = curr_tree["if_clear"]
+        else:
+            action = list(curr_tree.keys())[0]
+            path.append(action)
+            curr_tree = curr_tree[action]
+            
+    if path: path = [context.start_id] + path
+    return ExperimentResult("AND-OR Search", "Complex Env", result is not None, (time.perf_counter() - start_time) * 1000, {"nodes_expanded": nodes_expanded[0]}, path)
 
 def run_online_replanning(context) -> ExperimentResult:
     start_time = time.perf_counter()

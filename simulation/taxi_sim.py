@@ -17,12 +17,12 @@ from core.graph import Graph
 from core.vehicle import Vehicle, Ambulance, ManualTaxi
 from ui.renderer import Renderer
 from ui.dashboard import Dashboard
-from algorithms.registry import ALGORITHM_REGISTRY
+from algorithms.registry import ALGORITHM_REGISTRY, ASSIGNMENT_REGISTRY
 from core.map_data import NODES_DATA, EDGES_DATA
 
 EDGE_NODES = ['N1', 'N17', 'N6', 'N35', 'N79', 'N80', 'N82', 'N81', 'N45', 'N57', 'N20', 'N13', 'N27', 'N31', 'N10', 'N24']
 
-RESTRICTED_NODES = ['N105']
+RESTRICTED_NODES = ['N103', 'N104', 'N105', 'N106', 'N107', 'N108', 'N111', 'N112', 'N113', 'N114', 'N115', 'N116', 'N117']
 RESTRICTED_EDGES_DATA = [e for e in EDGES_DATA if e[0] not in RESTRICTED_NODES and e[1] not in RESTRICTED_NODES]
 
 def init_hospital_ambulances(vehicles_list):
@@ -349,27 +349,39 @@ def run_simulation():
                                 v.completed_trips = getattr(v, 'completed_trips', 0) + 1
                                 
                             elif not v.target_node_id:
-                                # Nếu xe bị mất đường (đã đi hết path ngắn hoặc lỗi path) nhưng chưa tới đích, tính lại đường!
-                                tgt = assigned['goal'] if assigned.get('picked_up') else assigned['start']
-                                try:
-                                    p = ALGORITHM_REGISTRY[getattr(v, 'algo', 'A*')](restricted_graph, v.current_node_id, tgt)
-                                    if p and len(p) > 1: v.set_path(p, restricted_graph)
-                                except Exception: pass
+                                # Chỉ tính lại đường khi xe tới node mới (không tính lại mỗi frame)
+                                if getattr(v, '_last_retry_node', None) != v.current_node_id:
+                                    v._last_retry_node = v.current_node_id
+                                    tgt = assigned['goal'] if assigned.get('picked_up') else assigned['start']
+                                    try:
+                                        p = ALGORITHM_REGISTRY[getattr(v, 'algo', 'A*')](restricted_graph, v.current_node_id, tgt)
+                                        if p and len(p) > 1:
+                                            v.set_path(p, restricted_graph)
+                                            # Path có thể ngắn (adversarial) — cho phép gọi lại tại node tiếp theo
+                                            if p[-1] != tgt:
+                                                v._last_retry_node = None
+                                    except Exception: pass
 
                         
                         if not getattr(v, 'assigned_customers', []):
                             unassigned = [c for c in customers if not c.get('is_patient', False) and not c.get('delivered', False) and not any(c in getattr(x, 'assigned_customers', []) or c is getattr(x, 'customer_dict', None) for x in vehicles if x.v_id.startswith('TX_'))]
                             if unassigned:
-
-                                best_c = min(unassigned, key=lambda c: math.hypot(graph.nodes[c['start']].x - graph.nodes[v.current_node_id].x, graph.nodes[c['start']].y - graph.nodes[v.current_node_id].y))
-                                v.assigned_customers.append(best_c)
-                                try:
-                                    p = ALGORITHM_REGISTRY[getattr(v, 'algo', 'A*')](restricted_graph, v.current_node_id, best_c['start'])
-                                    if p and len(p) > 1: v.set_path(p, restricted_graph)
-                                except Exception: pass
+                                idle_taxis = [x for x in vehicles if x.v_id.startswith('TX_') and not isinstance(x, ManualTaxi) and not getattr(x, 'assigned_customers', [])]
+                                # Chọn thuật toán CSP phân công: nhiều khách dùng Backtracking, 1 khách dùng Min-Conflicts
+                                algo_key = "Backtracking" if len(unassigned) > 1 else "Min-Conflicts"
+                                assignments = ASSIGNMENT_REGISTRY[algo_key](unassigned[:len(idle_taxis)], idle_taxis, restricted_graph)
+                                for cust_label, taxi in assignments.items():
+                                    if taxi is not v: continue  # chỉ xử lý phân công cho xe này
+                                    cust = next((c for c in unassigned if c['label'] == cust_label), None)
+                                    if cust and not getattr(v, 'assigned_customers', []):
+                                        v.assigned_customers.append(cust)
+                                        v._last_retry_node = None
+                                        try:
+                                            p = ALGORITHM_REGISTRY[getattr(v, 'algo', 'A*')](restricted_graph, v.current_node_id, cust['start'])
+                                            if p and len(p) > 1: v.set_path(p, restricted_graph)
+                                        except Exception: pass
 
             traffic_manager.update(graph, vehicles)
-            traffic_flow.check_static_obstacles(vehicles, broken_edges)
             traffic_flow.manage_distances(vehicles, graph, broken_edges)
 
             for v in vehicles:
@@ -377,7 +389,7 @@ def run_simulation():
                     v.state = "MOVING"
 
                 if v.v_id.startswith('TX_'):
-                    if getattr(v, 'state', '') not in ["MOVING_TO_CUSTOMER", "MOVING_TO_GOAL"]:
+                    if getattr(v, 'state', '') not in ["MOVING_TO_CUSTOMER", "MOVING_TO_GOAL"] and not getattr(v, 'assigned_customers', []):
                         TAXI_PARKING_NODES = ['N111', 'N112', 'N114', 'N115', 'N116', 'N117']
                         if v.current_node_id in TAXI_PARKING_NODES:
                             other = [x for x in vehicles if x != v and x.current_node_id == v.current_node_id and getattr(x, 'state', '') == "IDLE_AT_PARKING"]

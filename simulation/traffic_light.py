@@ -50,54 +50,52 @@ class TrafficLightManager:
         self.yellow_time = 60
         self.csp_overrides = {}
 
-    def apply_csp_override(self, configs):
-        self.csp_overrides = configs
 
-    def build_csp_context(self, graph, vehicles):
-        from core.contexts import CSPContext
-        variables = list(self.intersections.keys())
-        domains = {v: ['H_GREEN', 'V_GREEN'] for v in variables}
-        neighbors = {
-            'TL': ['TR', 'BL'],
-            'TR': ['TL'],
-            'BL': ['TL', 'BM'],
-            'BM': ['BL', 'BR'],
-            'BR': ['BM']
-        }
+
+    def optimize_lights_ac3(self, graph, vehicles):
+        self.csp_overrides.clear()
+
+        ambulances = [v for v in vehicles if getattr(v, 'is_ambulance', False) and getattr(v, 'path', [])]
+        required_axes = {}
+        target_groups = set()
         
-        for v in vehicles:
-            if getattr(v, 'is_ambulance', False) and v.target_node_id:
-                for grp, nodes in self.node_mapping.items():
-                    if v.target_node_id in nodes:
-                        n_target = graph.nodes[v.target_node_id]
-                        dx = abs(n_target.x - v.x)
-                        dy = abs(n_target.y - v.y)
-                        if dx > dy:
-                            domains[grp] = ['H_GREEN']
+        for ambulance in ambulances:
+            route = ambulance.path[:10] # look ahead 10 nodes to prepare early
+
+            for node in route:
+                for grp_id, nodes in self.node_mapping.items():
+                    if node in nodes:
+                        target_groups.add(grp_id)
+                        if len(route) > 1:
+                            dx = abs(graph.nodes[route[-1]].x - graph.nodes[route[0]].x)
+                            dy = abs(graph.nodes[route[-1]].y - graph.nodes[route[0]].y)
+                            axis_needed = 'H' if dx > dy else 'V'
+                            required_axes[grp_id] = axis_needed
                         else:
-                            domains[grp] = ['V_GREEN']
-                        break
+                            if grp_id not in required_axes:
+                                required_axes[grp_id] = 'H' # Default fallback
 
-        def constraints(var, val, n, val_n):
-            return val == val_n
-
-        return CSPContext(variables, domains, constraints, neighbors, max_steps=50)
-
-    def optimize_lights(self, graph, vehicles):
-        from algorithms.csp import run_min_conflicts
-        ctx = self.build_csp_context(graph, vehicles)
-        res = run_min_conflicts(ctx)
-        if res and res.path:
-            self.apply_csp_override(res.path)
+        if target_groups:
+            from algorithms.registry import ASSIGNMENT_REGISTRY
+            assignments = ASSIGNMENT_REGISTRY["AC-3"](list(target_groups), required_axes)
+            if assignments:
+                self.csp_overrides.update(assignments)
 
     def update(self, graph, vehicles=None):
         if not hasattr(self, 'csp_update_timer'):
             self.csp_update_timer = 0
             
         self.csp_update_timer += 1
-        if vehicles and self.csp_update_timer >= 60:
-            self.optimize_lights(graph, vehicles)
-            self.csp_update_timer = 0
+        
+        # Only count ambulances that are actively moving (have a path)
+        has_active_ambulance = any(getattr(v, 'is_ambulance', False) and getattr(v, 'path', []) for v in (vehicles or []))
+        
+        if has_active_ambulance:
+            if self.csp_update_timer >= 10:
+                self.optimize_lights_ac3(graph, vehicles)
+                self.csp_update_timer = 0
+        else:
+            self.csp_overrides.clear()
 
         for key, data in self.intersections.items():
             if key in self.csp_overrides:
@@ -122,7 +120,8 @@ class TrafficLightManager:
     def get_render_data(self):
         colors = {}
         for sp_id, sp_data in self.sprites.items():
-            grp_state = self.intersections[sp_data['group']]['state']
+            grp_id = sp_data['group']
+            grp_state = self.intersections[grp_id]['state']
             axis = sp_data['axis']
             light_color = (231, 76, 60)
             if axis == 'H':
@@ -131,5 +130,5 @@ class TrafficLightManager:
             elif axis == 'V':
                 if grp_state == 'V_GREEN': light_color = (46, 204, 113)
                 elif grp_state == 'V_YELLOW': light_color = (241, 196, 15)
-            colors[sp_id] = {'pos': sp_data['pos'], 'color': light_color, 'axis': axis}
+            colors[sp_id] = {'pos': sp_data['pos'], 'color': light_color, 'axis': axis, 'is_override': grp_id in self.csp_overrides}
         return colors

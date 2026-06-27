@@ -49,63 +49,37 @@ class MockContext:
 
 # --- ĐÓNG GÓI WRAPPER CHUẨN HÓA LỘ TRÌNH ĐỂ TRẢ VỀ DANH SÁCH NODE ID [Start, ..., Goal] ---
 
-def generate_fallback_path(graph, start, goal):
-    """Hàm bổ trợ sinh đường đi cơ bản nếu thuật toán đặc thù không trả về tuyến tính"""
-    if start == goal: return [start]
-    
-    # GIẢI PHÁP: Ưu tiên gọi thuật toán BFS (chạy hoàn hảo và ổn định nhất) để nối path cho Nhóm 3, 5
-    try:
-        from algorithms.uninformed import run_bfs
-        res = run_bfs(MockContext(graph, start, goal))
-        if res and getattr(res, 'path', None):
-            return res.path
-    except Exception:
-        pass
-        
-    # Dự phòng lớp 2 (Đã an toàn hơn vì heuristic_fn đã được fix)
-    try:
-        from algorithms.informed import run_a_star
-        res = run_a_star(MockContext(graph, start, goal))
-        if res and getattr(res, 'path', None):
-            return res.path
-    except Exception:
-        pass
-        
-    return []
-
 def uninformed_wrapper(func, graph, start, goal):
     res = func(MockContext(graph, start, goal))
     path = getattr(res, 'path', None)
-    return path if path else generate_fallback_path(graph, start, goal)
+    return path if path is not None else []
 
 def informed_wrapper(func, graph, start, goal):
     res = func(MockContext(graph, start, goal))
     path = getattr(res, 'path', None)
-    return path if path else generate_fallback_path(graph, start, goal)
+    return path if path is not None else []
 
 def local_search_wrapper(func, graph, start, goal):
     res = func(MockContext(graph, start, goal))
     path = getattr(res, 'path', None)
-    return path if isinstance(path, list) and path else generate_fallback_path(graph, start, goal)
+    return path if path is not None else []
 
 def complex_env_wrapper(func, graph, start, goal):
     res = func(MockContext(graph, start, goal))
     path = getattr(res, 'path', None)
-    return path if isinstance(path, list) and path else generate_fallback_path(graph, start, goal)
+    return path if path is not None else []
 
 def csp_wrapper(func, graph, start, goal):
-    func(MockContext(graph, start, goal))
-    return generate_fallback_path(graph, start, goal)
+    res = func(MockContext(graph, start, goal))
+    path = getattr(res, 'path', None)
+    return path if path is not None else []
 
 def adversarial_wrapper(func, graph, start, goal, depth=3):
     ctx = MockContext(graph, start, goal)
     ctx.max_depth = depth
     res = func(ctx)
     path = getattr(res, 'path', None)
-    # Đảm bảo lộ trình luôn dẫn tới đích, nếu thuật toán bị đứt đoạn giữa chừng thì dùng fallback nối tiếp
-    if path and path[-1] != goal:
-        return path + generate_fallback_path(graph, path[-1], goal)[1:]
-    return path if path else generate_fallback_path(graph, start, goal)
+    return path if path is not None else []
 
 # Đăng ký đồng bộ hệ thống vào REGISTRY nhận bộ tham số chuẩn (graph, start, goal) -> Trả về mảng Node ID kết quả
 ALGORITHM_REGISTRY = {
@@ -125,7 +99,7 @@ ALGORITHM_REGISTRY = {
     "Genetic": lambda g, s, tg: local_search_wrapper(run_local_beam_search, g, s, tg),
     
     # Nhóm 4: Complex Env
-    "D* Lite": lambda g, s, tg: complex_env_wrapper(run_and_or_search, g, s, tg), 
+    "AND-OR": lambda g, s, tg: complex_env_wrapper(run_and_or_search, g, s, tg), 
     "RTAA*": lambda g, s, tg: complex_env_wrapper(run_online_replanning, g, s, tg), 
     "Online": lambda g, s, tg: complex_env_wrapper(run_sensorless_search, g, s, tg),
     
@@ -136,6 +110,17 @@ ALGORITHM_REGISTRY = {
     
     # Nhóm 6: Adversarial
     "Minimax": lambda g, s, tg: adversarial_wrapper(run_minimax, g, s, tg, depth=2),
-    "Alpha-Beta": lambda g, s, tg: adversarial_wrapper(run_alpha_beta, g, s, tg, depth=4),
-    "Expect": lambda g, s, tg: adversarial_wrapper(run_expectimax, g, s, tg, depth=3)
+    "Alpha-Beta": lambda g, s, tg: adversarial_wrapper(run_alpha_beta, g, s, tg, depth=2),
+    "Expect": lambda g, s, tg: adversarial_wrapper(run_expectimax, g, s, tg, depth=2)
+}
+
+# Registry riêng cho bài toán phân công khách (Customer Assignment)
+# Interface chuẩn: func(customers, taxis, graph) -> dict {cust_label: taxi_object}
+from algorithms.csp import solve_taxi_assignment_backtracking, solve_taxi_assignment_minconflicts, solve_traffic_light_ac3, TaxiCSPContext, run_ac3
+
+
+ASSIGNMENT_REGISTRY = {
+    "Backtracking":  solve_taxi_assignment_backtracking,   # CSP: Backtracking phân công khách
+    "Min-Conflicts": solve_taxi_assignment_minconflicts,   # CSP: Min-Conflicts phân công khách
+    "AC-3":          solve_traffic_light_ac3,              # CSP: AC-3 tối ưu đèn giao thông cho xe cứu thương
 }

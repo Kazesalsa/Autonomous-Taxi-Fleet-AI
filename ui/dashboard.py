@@ -14,7 +14,7 @@ class Dashboard:
             1: ["BFS", "DFS", "UCS"],
             2: ["A*", "GBFS", "W-A*"],
             3: ["Hill Climb", "Sim. Anneal", "Genetic"],
-            4: ["D* Lite", "RTAA*", "Online"],
+            4: ["AND-OR", "RTAA*", "Online"],
             5: ["Minimax", "Alpha-Beta", "Expect"]
         }
         

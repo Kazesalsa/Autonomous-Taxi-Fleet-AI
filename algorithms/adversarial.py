@@ -11,8 +11,23 @@ def run_minimax(context) -> ExperimentResult:
     start_time = time.perf_counter()
     nodes_expanded = [0]
     
+    from algorithms.informed import run_a_star
+    from core.contexts import PathfindingContext
+    
+    # 1. Dùng A* tìm đường đi toàn cục (Global Path)
+    a_star_ctx = PathfindingContext(context.graph, context.vehicle_start, context.goal_id)
+    a_star_ctx.heuristic_fn = context.heuristic_fn if hasattr(context, 'heuristic_fn') else None
+    a_star_res = run_a_star(a_star_ctx)
+    global_path = a_star_res.path if a_star_res and hasattr(a_star_res, 'path') and a_star_res.path else []
+    
+    path_dist = {n: len(global_path) - 1 - i for i, n in enumerate(global_path)}
+    
     def eval_fn(v): 
-        return -get_h(context, context.graph.nodes[v], context.graph.nodes[context.goal_id])
+        if v in path_dist:
+            base_h = -path_dist[v] * 100
+        else:
+            base_h = -get_h(context, context.graph.nodes[v], context.graph.nodes[context.goal_id]) - 5000
+        return base_h - (100000 if v in visited_global else 0)
     
     def max_value(v_node, s_node, blocked, d, visited):
         nodes_expanded[0] += 1
@@ -25,55 +40,62 @@ def run_minimax(context) -> ExperimentResult:
             if hasattr(context, 'broken_edges') and edge_tuple in context.broken_edges: continue
             
             val, _ = min_value(edge.target_id, s_node, None, d - 1, visited | {edge.target_id})
-            if val > v: v, best = val, edge.target_id
-        return (float('-inf'), None) if best is None else (v, best)
+            if val > v or best is None: v, best = val, edge.target_id
+        return (eval_fn(v_node), None) if best is None else (v, best)
 
     def min_value(v_node, s_node, blocked, d, visited):
         nodes_expanded[0] += 1
         if v_node == context.goal_id or d == 0: return eval_fn(v_node), None
         v, best = float('inf'), None
-        poss = [tuple(sorted((v_node, e.target_id))) for e in context.graph.nodes[v_node].edges]
+        poss = [tuple(sorted((v_node, e.target_id))) for e in context.graph.nodes[v_node].edges if e.target_id != context.goal_id]
         if hasattr(context, 'broken_edges'):
             poss = [b for b in poss if b not in context.broken_edges]
         if not poss: poss = [None]
         
         for b in poss:
             val, _ = max_value(v_node, s_node, b, d - 1, visited)
-            if val < v: v, best = val, b
+            if val < v or best is None: v, best = val, b
         return v, best
 
     path = [context.vehicle_start]
     curr = context.vehicle_start
     total_score = 0
-    
-    while curr != context.goal_id and len(path) < 100:
+    visited_global = {curr}
+
+    while curr != context.goal_id and len(path) < 200:
         score, nxt = max_value(curr, context.saboteur_start, None, context.max_depth, {curr})
-        if not nxt or nxt in path: 
+        if not nxt:
             break
         path.append(nxt)
+        visited_global.add(nxt)
         curr = nxt
         total_score += score
 
-    if curr != context.goal_id:
-        try:
-            from algorithms.informed import run_a_star
-            from core.contexts import PathfindingContext
-            res = run_a_star(PathfindingContext(context.graph, curr, context.goal_id, heuristic_fn=lambda n1, n2: get_h(context, n1, n2)))
-            if res and getattr(res, 'path', None):
-                path.extend(res.path[1:])
-        except Exception:
-            pass
-
-    return ExperimentResult("Minimax", "Adversarial", curr == context.goal_id or len(path) > 1, 
-                            (time.perf_counter() - start_time) * 1000, 
+    return ExperimentResult("Minimax", "Adversarial", curr == context.goal_id or len(path) > 1,
+                            (time.perf_counter() - start_time) * 1000,
                             {"nodes_expanded": nodes_expanded[0], "score": total_score}, path)
 
 def run_alpha_beta(context) -> ExperimentResult:
     start_time = time.perf_counter()
     nodes_expanded = [0]
     
+    from algorithms.informed import run_a_star
+    from core.contexts import PathfindingContext
+    
+    # 1. Dùng A* tìm đường đi toàn cục (Global Path)
+    a_star_ctx = PathfindingContext(context.graph, context.vehicle_start, context.goal_id)
+    a_star_ctx.heuristic_fn = context.heuristic_fn if hasattr(context, 'heuristic_fn') else None
+    a_star_res = run_a_star(a_star_ctx)
+    global_path = a_star_res.path if a_star_res and hasattr(a_star_res, 'path') and a_star_res.path else []
+    
+    path_dist = {n: len(global_path) - 1 - i for i, n in enumerate(global_path)}
+    
     def eval_fn(v): 
-        return -get_h(context, context.graph.nodes[v], context.graph.nodes[context.goal_id])
+        if v in path_dist:
+            base_h = -path_dist[v] * 100
+        else:
+            base_h = -get_h(context, context.graph.nodes[v], context.graph.nodes[context.goal_id]) - 5000
+        return base_h - (100000 if v in visited_global else 0)
     
     def max_value(v_node, s_node, blocked, d, alpha, beta, visited):
         nodes_expanded[0] += 1
@@ -86,23 +108,23 @@ def run_alpha_beta(context) -> ExperimentResult:
             if hasattr(context, 'broken_edges') and edge_tuple in context.broken_edges: continue
             
             val, _ = min_value(edge.target_id, s_node, None, d - 1, alpha, beta, visited | {edge.target_id})
-            if val > v: v, best = val, edge.target_id
+            if val > v or best is None: v, best = val, edge.target_id
             if v >= beta: return v, best
             alpha = max(alpha, v)
-        return (float('-inf'), None) if best is None else (v, best)
+        return (eval_fn(v_node), None) if best is None else (v, best)
 
     def min_value(v_node, s_node, blocked, d, alpha, beta, visited):
         nodes_expanded[0] += 1
         if v_node == context.goal_id or d == 0: return eval_fn(v_node), None
         v, best = float('inf'), None
-        poss = [tuple(sorted((v_node, e.target_id))) for e in context.graph.nodes[v_node].edges]
+        poss = [tuple(sorted((v_node, e.target_id))) for e in context.graph.nodes[v_node].edges if e.target_id != context.goal_id]
         if hasattr(context, 'broken_edges'):
             poss = [b for b in poss if b not in context.broken_edges]
         if not poss: poss = [None]
         
         for b in poss:
             val, _ = max_value(v_node, s_node, b, d - 1, alpha, beta, visited)
-            if val < v: v, best = val, b
+            if val < v or best is None: v, best = val, b
             if v <= alpha: return v, best
             beta = min(beta, v)
         return v, best
@@ -110,35 +132,42 @@ def run_alpha_beta(context) -> ExperimentResult:
     path = [context.vehicle_start]
     curr = context.vehicle_start
     total_score = 0
-    
-    while curr != context.goal_id and len(path) < 100:
+    visited_global = {curr}
+
+    while curr != context.goal_id and len(path) < 200:
         score, nxt = max_value(curr, context.saboteur_start, None, context.max_depth, float('-inf'), float('inf'), {curr})
-        if not nxt or nxt in path: 
+        if not nxt:
             break
         path.append(nxt)
+        visited_global.add(nxt)
         curr = nxt
         total_score += score
 
-    if curr != context.goal_id:
-        try:
-            from algorithms.informed import run_a_star
-            from core.contexts import PathfindingContext
-            res = run_a_star(PathfindingContext(context.graph, curr, context.goal_id, heuristic_fn=lambda n1, n2: get_h(context, n1, n2)))
-            if res and getattr(res, 'path', None):
-                path.extend(res.path[1:])
-        except Exception:
-            pass
-
-    return ExperimentResult("Alpha-Beta", "Adversarial", curr == context.goal_id or len(path) > 1, 
-                            (time.perf_counter() - start_time) * 1000, 
+    return ExperimentResult("Alpha-Beta", "Adversarial", curr == context.goal_id or len(path) > 1,
+                            (time.perf_counter() - start_time) * 1000,
                             {"nodes_expanded": nodes_expanded[0], "score": total_score}, path)
 
 def run_expectimax(context) -> ExperimentResult:
     start_time = time.perf_counter()
     nodes_expanded = [0]
     
+    from algorithms.informed import run_a_star
+    from core.contexts import PathfindingContext
+    
+    # 1. Dùng A* tìm đường đi toàn cục (Global Path)
+    a_star_ctx = PathfindingContext(context.graph, context.vehicle_start, context.goal_id)
+    a_star_ctx.heuristic_fn = context.heuristic_fn if hasattr(context, 'heuristic_fn') else None
+    a_star_res = run_a_star(a_star_ctx)
+    global_path = a_star_res.path if a_star_res and hasattr(a_star_res, 'path') and a_star_res.path else []
+    
+    path_dist = {n: len(global_path) - 1 - i for i, n in enumerate(global_path)}
+    
     def eval_fn(v): 
-        return -get_h(context, context.graph.nodes[v], context.graph.nodes[context.goal_id])
+        if v in path_dist:
+            base_h = -path_dist[v] * 100
+        else:
+            base_h = -get_h(context, context.graph.nodes[v], context.graph.nodes[context.goal_id]) - 5000
+        return base_h - (100000 if v in visited_global else 0)
     
     def max_value(v_node, s_node, blocked, d, visited):
         nodes_expanded[0] += 1
@@ -151,16 +180,16 @@ def run_expectimax(context) -> ExperimentResult:
             if hasattr(context, 'broken_edges') and edge_tuple in context.broken_edges: continue
             
             val, _ = exp_value(edge.target_id, s_node, None, d - 1, visited | {edge.target_id})
-            if val > v: v, best = val, edge.target_id
-        return (float('-inf'), None) if best is None else (v, best)
+            if val > v or best is None: v, best = val, edge.target_id
+        return (eval_fn(v_node), None) if best is None else (v, best)
 
     def exp_value(v_node, s_node, blocked, d, visited):
         nodes_expanded[0] += 1
         if v_node == context.goal_id or d == 0: return eval_fn(v_node), None
-        poss = [tuple(sorted((v_node, e.target_id))) for e in context.graph.nodes[v_node].edges]
+        poss = [tuple(sorted((v_node, e.target_id))) for e in context.graph.nodes[v_node].edges if e.target_id != context.goal_id]
         if hasattr(context, 'broken_edges'):
             poss = [b for b in poss if b not in context.broken_edges]
-        if not poss: return float('-inf'), None
+        if not poss: poss = [None]
         
         v, prob = 0, 1.0 / len(poss)
         for b in poss:
@@ -171,25 +200,17 @@ def run_expectimax(context) -> ExperimentResult:
     path = [context.vehicle_start]
     curr = context.vehicle_start
     total_score = 0
-    
-    while curr != context.goal_id and len(path) < 100:
+    visited_global = {curr}
+
+    while curr != context.goal_id and len(path) < 200:
         score, nxt = max_value(curr, context.saboteur_start, None, context.max_depth, {curr})
-        if not nxt or nxt in path: 
+        if not nxt:
             break
         path.append(nxt)
+        visited_global.add(nxt)
         curr = nxt
         total_score += score
 
-    if curr != context.goal_id:
-        try:
-            from algorithms.informed import run_a_star
-            from core.contexts import PathfindingContext
-            res = run_a_star(PathfindingContext(context.graph, curr, context.goal_id, heuristic_fn=lambda n1, n2: get_h(context, n1, n2)))
-            if res and getattr(res, 'path', None):
-                path.extend(res.path[1:])
-        except Exception:
-            pass
-
-    return ExperimentResult("Expectimax", "Adversarial", curr == context.goal_id or len(path) > 1, 
-                            (time.perf_counter() - start_time) * 1000, 
+    return ExperimentResult("Expectimax", "Adversarial", curr == context.goal_id or len(path) > 1,
+                            (time.perf_counter() - start_time) * 1000,
                             {"nodes_expanded": nodes_expanded[0], "score": total_score}, path)
