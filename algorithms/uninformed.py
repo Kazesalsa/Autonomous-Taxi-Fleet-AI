@@ -59,6 +59,7 @@ def run_ucs(context) -> ExperimentResult:
     came_from = {start_id: None}
     cost_so_far = {start_id: 0}
     nodes_expanded = 0
+    
     while open_set:
         current_cost, curr_id = heapq.heappop(open_set)
         nodes_expanded += 1

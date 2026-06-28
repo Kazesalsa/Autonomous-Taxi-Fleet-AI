@@ -253,12 +253,9 @@ class Renderer:
         txt_mode = self.font.render(mode_text, True, text_color)
         self.screen.blit(txt_mode, (create_rect.centerx - txt_mode.get_width() / 2, create_rect.y + 22))
 
-        # Hàng 2: Reset & Vật cản
+        # Hàng 2: Reset
         if 'reset' in ui_rects:
             self._draw_btn(ui_rects['reset'], "Reset", (52, 152, 219))
-        if 'obstacle' in ui_rects:
-            obs_btn_color = (231, 76, 60) if obs_mode_on else (149, 165, 166)
-            self._draw_btn(ui_rects['obstacle'], "Vật cản", obs_btn_color)
 
         # Hàng 3: Kịch bản MAP dọc
         for i in range(1, 3):

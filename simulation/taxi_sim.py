@@ -20,9 +20,11 @@ from ui.dashboard import Dashboard
 from algorithms.registry import ALGORITHM_REGISTRY, ASSIGNMENT_REGISTRY
 from core.map_data import NODES_DATA, EDGES_DATA
 
-EDGE_NODES = ['N1', 'N17', 'N6', 'N35', 'N79', 'N80', 'N82', 'N81', 'N45', 'N57', 'N20', 'N13', 'N27', 'N31', 'N10', 'N24']
+EDGE_NODES = ['N1', 'N17', 'N6', 'N35', 'N79', 'N80', 'N82', 'N81', 'N45',
+             'N57', 'N20', 'N13', 'N27', 'N31', 'N10', 'N24']
 
-RESTRICTED_NODES = ['N103', 'N104', 'N105', 'N106', 'N107', 'N108', 'N111', 'N112', 'N113', 'N114', 'N115', 'N116', 'N117']
+RESTRICTED_NODES = ['N103', 'N104', 'N105', 'N106', 'N107', 'N108', 'N111',
+                    'N112', 'N113', 'N114', 'N115', 'N116', 'N117']
 RESTRICTED_EDGES_DATA = [e for e in EDGES_DATA if e[0] not in RESTRICTED_NODES and e[1] not in RESTRICTED_NODES]
 
 def init_hospital_ambulances(vehicles_list):
@@ -136,7 +138,7 @@ def run_simulation():
     hospital_ambs = init_hospital_ambulances(vehicles)
     
     customers = []; broken_edges = {} 
-    is_paused = False; obstacle_mode = False
+    is_paused = False
     pending_spawn_group = None; pending_spawn_algo = None; focused_vehicle = None; pending_customer_start = None
 
     traffic_manager = TrafficLightManager()
@@ -211,36 +213,11 @@ def run_simulation():
 
                 if click_result == "pause": is_paused = not is_paused
 
-                elif click_result == "obstacle":
-                    obstacle_mode = not obstacle_mode
-                    dashboard.add_log(f"Chế độ vật cản: {'Bật - click vào đường để đặt đá' if obstacle_mode else 'Tắt'}")
-
                 elif click_result == "create":
                     modes = ["Khách", "Bệnh nhân"]
                     idx = modes.index(dashboard.create_mode) if dashboard.create_mode in modes else 0
                     dashboard.create_mode = modes[(idx + 1) % len(modes)]
-                    dashboard._sync_state(obstacle_mode=obstacle_mode)
-
-                elif isinstance(click_result, tuple) and click_result[0] == "REMOVE_BLOCK":
-                    edge_id = click_result[1]
-                    if edge_id in broken_edges:
-                        del broken_edges[edge_id]
-                        dashboard.add_log(f"Đã xóa vật cản")
-
-                elif isinstance(click_result, tuple) and click_result[0] == "EDGE" and obstacle_mode:
-                    u_id, v_id, proj, edge_dir = click_result[1], click_result[2], click_result[3], click_result[4]
-                    edge_key = f"{u_id}_{v_id}"
-                    if edge_key not in broken_edges:
-                        broken_edges[edge_key] = {
-                            'u': u_id, 'v': v_id,
-                            'pos': proj,
-                            'dir': edge_dir,
-                            'edges': {(u_id, v_id), (v_id, u_id)}
-                        }
-                        dashboard.add_log(f"Đã đặt vật cản tại {u_id}→{v_id}")
-                    else:
-                        del broken_edges[edge_key]
-                        dashboard.add_log(f"Đã xóa vật cản {u_id}→{v_id}")
+                    dashboard._sync_state()
 
                 elif isinstance(click_result, tuple) and click_result[0] == "START_SCENARIO":
                     scenario_id = click_result[1]
@@ -284,7 +261,6 @@ def run_simulation():
                     customers.clear(); broken_edges.clear()
                     if hasattr(traffic_manager, 'is_scenario_2'):
                         del traffic_manager.is_scenario_2
-                    obstacle_mode = False
                     traffic_manager.csp_overrides = {}
                     is_paused = False
                 elif isinstance(click_result, tuple) and click_result[0] == "SPAWN_TAXI":
@@ -441,7 +417,7 @@ def run_simulation():
                         
                     taxi_leaderboard[display_name] = {'cost': cst, 'revenue': rev, 'state': getattr(v, 'state', 'UNK'), 'customers': lbls}
             dashboard.metrics['taxi_leaderboard'] = taxi_leaderboard
-        dashboard._sync_state(obstacle_mode=obstacle_mode)
+        dashboard._sync_state()
         screen.fill(COLOR_BG)
         if bg_image: screen.blit(bg_image, (0, 0))
         

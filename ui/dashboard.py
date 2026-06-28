@@ -26,23 +26,22 @@ class Dashboard:
             'pause': pygame.Rect(MAP_WIDTH + 20, 550, DASHBOARD_WIDTH - 40, 40),
             
             # Hàng 1: Bắt đầu & Tạo (Y = 20)
-            'start': pygame.Rect(c1, 20, cw, 35),
-            'create': pygame.Rect(c2, 20, cw, 45), # Tăng chiều cao một chút để hiển thị 2 dòng
+            'start': pygame.Rect(c1, 20, cw, 45),
+            'create': pygame.Rect(c2, 20, cw, 45), # Cùng chiều cao với start
             
-            # Hàng 2: Reset & Vật cản (Y = 65)
-            'reset': pygame.Rect(c1, 65, cw, 35),
-            'obstacle': pygame.Rect(c2, 65, cw, 35),
+            # Hàng 2: Reset (Y = 75) - chiều rộng toàn bộ, khoảng cách 10px từ hàng 1
+            'reset': pygame.Rect(MAP_WIDTH + 20, 75, DASHBOARD_WIDTH - 40, 35),
             
             # Hàng 3: Kịch bản MAP (Xếp dọc tránh đè chữ)
-            'map1': pygame.Rect(MAP_WIDTH + 20, 115, DASHBOARD_WIDTH - 40, 35),
-            'map2': pygame.Rect(MAP_WIDTH + 20, 155, DASHBOARD_WIDTH - 40, 35),
+            'map1': pygame.Rect(MAP_WIDTH + 20, 125, DASHBOARD_WIDTH - 40, 35),
+            'map2': pygame.Rect(MAP_WIDTH + 20, 165, DASHBOARD_WIDTH - 40, 35),
             
             # Hàng 4: Các nhóm thuật toán (Chiều cao thu nhỏ về 32px để tiết kiệm không gian)
-            'grp1': pygame.Rect(c1, 245, cw, 32),
-            'grp2': pygame.Rect(c2, 245, cw, 32),
-            'grp3': pygame.Rect(c1, 285, cw, 32),
-            'grp4': pygame.Rect(c2, 285, cw, 32),
-            'grp5': pygame.Rect(c1, 325, cw, 32),
+            'grp1': pygame.Rect(c1, 255, cw, 32),
+            'grp2': pygame.Rect(c2, 255, cw, 32),
+            'grp3': pygame.Rect(c1, 295, cw, 32),
+            'grp4': pygame.Rect(c2, 295, cw, 32),
+            'grp5': pygame.Rect(c1, 335, cw, 32),
             '_state_sync': {}
         }
         self._sync_state()
@@ -86,8 +85,6 @@ class Dashboard:
                 return 'create'
             if self.ui_rects['reset'].collidepoint(pos):
                 return 'reset'
-            if self.ui_rects['obstacle'].collidepoint(pos):
-                return 'obstacle'
 
             for i in range(1, 4):
                 if f'map{i}' in self.ui_rects and self.ui_rects[f'map{i}'].collidepoint(pos):
@@ -114,10 +111,6 @@ class Dashboard:
                 return "UI_UPDATED"
 
             return None
-
-        for edge_id, obs in list(broken_edges.items()):
-            if math.hypot(pos[0] - obs['pos'][0], pos[1] - obs['pos'][1]) < 25:
-                return ("REMOVE_BLOCK", edge_id)
 
         clicked_node = None
         for n_id, n in graph.nodes.items():
