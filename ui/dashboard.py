@@ -26,12 +26,11 @@ class Dashboard:
             'pause': pygame.Rect(MAP_WIDTH + 20, 550, DASHBOARD_WIDTH - 40, 40),
             
             # Hàng 1: Bắt đầu & Tạo (Y = 20)
-            'start': pygame.Rect(c1, 20, cw, 35),
-            'create': pygame.Rect(c2, 20, cw, 45), # Tăng chiều cao một chút để hiển thị 2 dòng
+            'start': pygame.Rect(c1, 20, cw, 40),
+            'create': pygame.Rect(c2, 20, cw, 40),
             
-            # Hàng 2: Reset & Vật cản (Y = 65)
-            'reset': pygame.Rect(c1, 65, cw, 35),
-            'obstacle': pygame.Rect(c2, 65, cw, 35),
+            # Hàng 2: Reset (Y = 65)
+            'reset': pygame.Rect(c1, 65, DASHBOARD_WIDTH - 40, 40),
             
             # Hàng 3: Kịch bản MAP (Xếp dọc tránh đè chữ)
             'map1': pygame.Rect(MAP_WIDTH + 20, 115, DASHBOARD_WIDTH - 40, 35),
@@ -86,8 +85,6 @@ class Dashboard:
                 return 'create'
             if self.ui_rects['reset'].collidepoint(pos):
                 return 'reset'
-            if self.ui_rects['obstacle'].collidepoint(pos):
-                return 'obstacle'
 
             for i in range(1, 4):
                 if f'map{i}' in self.ui_rects and self.ui_rects[f'map{i}'].collidepoint(pos):

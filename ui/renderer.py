@@ -226,7 +226,6 @@ class Renderer:
         group_idx = sync_data.get('group_idx', {i: 0 for i in range(1, 7)})
         algos = sync_data.get('algos', {i: [""]*3 for i in range(1, 7)})
         metrics = sync_data.get('metrics', {})
-        obs_mode_on = sync_data.get('obstacle_mode', False)
 
         # Hàng 1
         self._draw_btn(ui_rects['start'], "Bắt đầu", (46, 204, 113))
@@ -253,12 +252,9 @@ class Renderer:
         txt_mode = self.font.render(mode_text, True, text_color)
         self.screen.blit(txt_mode, (create_rect.centerx - txt_mode.get_width() / 2, create_rect.y + 22))
 
-        # Hàng 2: Reset & Vật cản
+        # Hàng 2: Reset
         if 'reset' in ui_rects:
             self._draw_btn(ui_rects['reset'], "Reset", (52, 152, 219))
-        if 'obstacle' in ui_rects:
-            obs_btn_color = (231, 76, 60) if obs_mode_on else (149, 165, 166)
-            self._draw_btn(ui_rects['obstacle'], "Vật cản", obs_btn_color)
 
         # Hàng 3: Kịch bản MAP dọc
         for i in range(1, 3):
