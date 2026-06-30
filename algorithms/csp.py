@@ -116,20 +116,20 @@ def solve_taxi_assignment_minconflicts(customers, taxis, graph):
 class TrafficLightCSPContext:
     def __init__(self, target_groups, required_axes):
         self.variables = list(target_groups)
-        self.domains = {v: ['H_GREEN', 'V_GREEN'] for v in self.variables}
-        self.neighbors = {v: [n for n in self.variables if n != v] for v in self.variables}
         self.required_axes = required_axes
+        self.domains = {}
+        for v in self.variables:
+            req = self.required_axes.get(v)
+            if req:
+                self.domains[v] = [f"{req}_GREEN"]
+            else:
+                self.domains[v] = ['H_GREEN', 'V_GREEN']
+        self.neighbors = {v: [n for n in self.variables if n != v] for v in self.variables}
 
     def constraints(self, var1, val1, var2, val2):
-        # Unary constraint: if var1 has a required axis, val1 must match it
-        req1 = self.required_axes.get(var1)
-        if req1 and val1 != f"{req1}_GREEN":
-            return False
-        
-        req2 = self.required_axes.get(var2)
-        if req2 and val2 != f"{req2}_GREEN":
-            return False
-            
+        # The unary constraints are already handled in domain initialization.
+        # If we had binary constraints (e.g. adjacent lights cannot both be H_GREEN), 
+        # we would put them here. For now, all combinations of valid domains are fine.
         return True
 
 def solve_traffic_light_ac3(target_groups, required_axes):

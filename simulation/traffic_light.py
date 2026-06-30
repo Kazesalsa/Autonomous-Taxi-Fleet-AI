@@ -60,8 +60,8 @@ class TrafficLightManager:
         target_groups = set()
         
         for ambulance in ambulances:
-            route = ambulance.path[:10] # look ahead 10 nodes to prepare early
-
+            # Tăng số node nhìn trước (look ahead) để trưng dụng đèn từ xa và giữ đèn lâu hơn
+            route = ambulance.path[:40]
             for node in route:
                 for grp_id, nodes in self.node_mapping.items():
                     if node in nodes:
